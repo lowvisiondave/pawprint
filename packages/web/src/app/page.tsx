@@ -18,6 +18,8 @@ interface DashboardData {
     sessions: { active: number; total: number };
     crons: { enabled: number; total: number };
     costs: { today: number; month: number };
+    tokens?: { input: number; output: number };
+    modelBreakdown?: Record<string, number>;
   } | null;
   reportedAt: string | null;
   gatewayOnline: boolean;
@@ -548,6 +550,12 @@ function Dashboard() {
                 <div className="text-2xl font-bold text-emerald-400">
                   ${latestReport?.costs?.today?.toFixed(2) ?? "0.00"}
                 </div>
+                {latestReport?.tokens && (
+                  <div className="text-xs text-zinc-500 mt-1">
+                    {latestReport.tokens.output > 0 && `${(latestReport.tokens.output / 1000).toFixed(1)}K out`}
+                    {latestReport.tokens.input > 0 && ` / ${(latestReport.tokens.input / 1000).toFixed(1)}K in`}
+                  </div>
+                )}
               </div>
               <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 transition-all duration-150 hover:border-zinc-700">
                 <div className="text-zinc-400 text-sm">Cron Jobs</div>
@@ -556,6 +564,20 @@ function Dashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Model breakdown */}
+            {latestReport?.modelBreakdown && Object.keys(latestReport.modelBreakdown).length > 0 && (
+              <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 mb-4">
+                <div className="text-xs text-zinc-500 mb-2">Models</div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(latestReport.modelBreakdown).map(([model, count]) => (
+                    <span key={model} className="text-xs bg-zinc-800 px-2 py-1 rounded">
+                      {model.split('/').pop()}: {count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Charts */}
             {chartData.length > 0 && (

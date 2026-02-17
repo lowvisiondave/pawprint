@@ -52,6 +52,8 @@ interface ReportPayload {
   sessions: { active: number; total: number };
   crons: { enabled: number; total: number };
   costs: { today: number; month: number };
+  tokens?: { input: number; output: number };
+  modelBreakdown?: Record<string, number>;
 }
 
 // Get workspace from API key
@@ -253,6 +255,11 @@ export async function GET(
           sessions: { active: row.sessions_active, total: row.sessions_total },
           crons: { enabled: row.crons_enabled, total: row.crons_total },
           costs: { today: Number(row.cost_today), month: Number(row.cost_month) },
+          tokens: row.tokens_output ? { 
+            input: Number(row.tokens_input || 0), 
+            output: Number(row.tokens_output) 
+          } : undefined,
+          modelBreakdown: row.model_breakdown,
         },
         reportedAt: row.timestamp,
         gatewayOnline,
@@ -315,7 +322,8 @@ export async function POST(
           timestamp, gateway_online, gateway_uptime,
           sessions_active, sessions_total,
           crons_enabled, crons_total,
-          cost_today, cost_month
+          cost_today, cost_month,
+          tokens_input, tokens_output, model_breakdown
         ) VALUES (
           ${workspace.id},
           ${payload.timestamp || new Date().toISOString()},
@@ -326,7 +334,10 @@ export async function POST(
           ${payload.crons?.enabled ?? null},
           ${payload.crons?.total ?? null},
           ${payload.costs?.today ?? null},
-          ${payload.costs?.month ?? null}
+          ${payload.costs?.month ?? null},
+          ${payload.tokens?.input ?? null},
+          ${payload.tokens?.output ?? null},
+          ${payload.modelBreakdown ? JSON.stringify(payload.modelBreakdown) : null}
         )
       `;
       
