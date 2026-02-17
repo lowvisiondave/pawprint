@@ -1,7 +1,4 @@
 {
-  "buildCommand": "npm install && npm run build",
-  "outputDirectory": "dist",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
-  ]
+  "buildCommand": "cd packages/api && npm install && npm run build",
+  "installCommand": "cd packages/api && npm install"
 }

@@ -155,14 +155,18 @@ app.get('/v1/crons', async (c) => {
   return c.json({ crons: report.payload.crons });
 });
 
-// Start server
-import { serve } from '@hono/node-server';
+// Vercel adapter
+import { handle } from 'hono/vercel';
+export const fetch = handle(app);
 
-const port = Number(process.env.PORT) || 3001;
-
-serve({
-  fetch: app.fetch,
-  port,
-}, (info) => {
-  console.log(`🐾 pawprint API running on http://localhost:${info.port}`);
-});
+// Local dev server (when not on Vercel)
+if (process.env.VERCEL !== '1') {
+  import { serve } from '@hono/node-server';
+  const port = Number(process.env.PORT) || 3001;
+  serve({
+    fetch: app.fetch,
+    port,
+  }, (info) => {
+    console.log(`🐾 pawprint API running on http://localhost:${info.port}`);
+  });
+}
