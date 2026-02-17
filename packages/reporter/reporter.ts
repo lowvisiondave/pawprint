@@ -42,7 +42,7 @@ interface ReportPayload {
   agentId: string;
 }
 
-const API_URL = process.env.PAWPRINT_API_URL || 'https://api.pawprint.dev';
+const API_URL = process.env.PAWPRINT_API_URL || 'https://web-zeta-ecru-50.vercel.app/api';
 const API_KEY = process.env.PAWPRINT_API_KEY;
 
 function getOpenClawDir(): string {
