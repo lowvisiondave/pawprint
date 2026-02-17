@@ -1,11 +1,16 @@
 import NextAuth from "next-auth"
-import GitHub from "next-auth/providers/github"
+import GitHubProvider from "next-auth/providers/github"
 import { neon } from "@neondatabase/serverless"
 
 const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers: [GitHub],
+  providers: [
+    GitHubProvider({
+      clientId: process.env.GITHUB_ID,
+      clientSecret: process.env.GITHUB_SECRET,
+    })
+  ],
   callbacks: {
     async signIn({ user }) {
       if (!sql) return true
