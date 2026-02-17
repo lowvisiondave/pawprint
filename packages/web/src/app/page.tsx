@@ -136,36 +136,44 @@ function Dashboard({
   onLogout: () => void
 }) {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchDashboard() {
-      try {
-        const res = await fetch(`${API_URL}/api/v1/dashboard`, {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-          },
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        setData(json);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch");
-      } finally {
-        setLoading(false);
-      }
+  async function fetchDashboard() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/dashboard`, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch");
+    } finally {
+      setLoading(false);
     }
-    fetchDashboard();
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchDashboard, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [apiKey]);
+  }
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-950">
         <div className="text-zinc-400">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
+        <button 
+          onClick={fetchDashboard}
+          className="bg-zinc-100 text-zinc-900 px-6 py-3 rounded-lg font-medium hover:bg-zinc-200"
+        >
+          Load Dashboard
+        </button>
       </div>
     );
   }
@@ -216,7 +224,13 @@ function Dashboard({
             <div>Last report: {reportedAt ? formatTime(reportedAt) : "Never"}</div>
           </div>
         </div>
-        <div className="mt-4 pt-4 border-t border-zinc-800">
+        <div className="mt-4 pt-4 border-t border-zinc-800 flex gap-2">
+          <button 
+            onClick={fetchDashboard}
+            className="text-xs text-zinc-500 hover:text-zinc-300"
+          >
+            Refresh
+          </button>
           <button 
             onClick={onLogout}
             className="text-xs text-zinc-500 hover:text-zinc-300"
