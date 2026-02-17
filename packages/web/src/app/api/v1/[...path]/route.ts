@@ -54,6 +54,14 @@ interface ReportPayload {
   costs: { today: number; month: number };
   tokens?: { input: number; output: number };
   modelBreakdown?: Record<string, number>;
+  system?: {
+    hostname?: string;
+    memoryUsedPercent?: number;
+    memoryFreeMb?: number;
+    diskUsedPercent?: number;
+    diskFreeGb?: number;
+    localIp?: string;
+  };
 }
 
 // Get workspace from API key
@@ -260,6 +268,14 @@ export async function GET(
             output: Number(row.tokens_output) 
           } : undefined,
           modelBreakdown: row.model_breakdown,
+          system: row.system_hostname ? {
+            hostname: row.system_hostname,
+            memoryUsedPercent: row.system_memory_used_percent ? Number(row.system_memory_used_percent) : undefined,
+            memoryFreeMb: row.system_memory_free_mb,
+            diskUsedPercent: row.system_disk_used_percent ? Number(row.system_disk_used_percent) : undefined,
+            diskFreeGb: row.system_disk_free_gb ? Number(row.system_disk_free_gb) : undefined,
+            localIp: row.system_local_ip,
+          } : undefined,
         },
         reportedAt: row.timestamp,
         gatewayOnline,
@@ -323,7 +339,9 @@ export async function POST(
           sessions_active, sessions_total,
           crons_enabled, crons_total,
           cost_today, cost_month,
-          tokens_input, tokens_output, model_breakdown
+          tokens_input, tokens_output, model_breakdown,
+          system_hostname, system_memory_used_percent, system_memory_free_mb,
+          system_disk_used_percent, system_disk_free_gb, system_local_ip
         ) VALUES (
           ${workspace.id},
           ${payload.timestamp || new Date().toISOString()},
@@ -337,7 +355,13 @@ export async function POST(
           ${payload.costs?.month ?? null},
           ${payload.tokens?.input ?? null},
           ${payload.tokens?.output ?? null},
-          ${payload.modelBreakdown ? JSON.stringify(payload.modelBreakdown) : null}
+          ${payload.modelBreakdown ? JSON.stringify(payload.modelBreakdown) : null},
+          ${payload.system?.hostname ?? null},
+          ${payload.system?.memoryUsedPercent ?? null},
+          ${payload.system?.memoryFreeMb ?? null},
+          ${payload.system?.diskUsedPercent ?? null},
+          ${payload.system?.diskFreeGb ?? null},
+          ${payload.system?.localIp ?? null}
         )
       `;
       

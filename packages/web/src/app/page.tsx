@@ -20,6 +20,14 @@ interface DashboardData {
     costs: { today: number; month: number };
     tokens?: { input: number; output: number };
     modelBreakdown?: Record<string, number>;
+    system?: {
+      hostname?: string;
+      memoryUsedPercent?: number;
+      memoryFreeMb?: number;
+      diskUsedPercent?: number;
+      diskFreeGb?: number;
+      localIp?: string;
+    };
   } | null;
   reportedAt: string | null;
   gatewayOnline: boolean;
@@ -596,7 +604,73 @@ npx tsx reporter.ts`}
           // Dashboard tab
           <>
             {/* Stats cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-4">
+              <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 transition-all duration-150 hover:border-zinc-700">
+                <div className="text-zinc-400 text-sm">Gateway</div>
+                <div className="text-2xl font-bold">
+                  {gatewayOnline ? (
+                    <span className="text-emerald-400">🟢 Online</span>
+                  ) : (
+                    <span className="text-red-400">🔴 Offline</span>
+                  )}
+                </div>
+              </div>
+              <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 transition-all duration-150 hover:border-zinc-700">
+                <div className="text-zinc-400 text-sm">Uptime (24h)</div>
+                <div className="text-2xl font-bold text-zinc-100">
+                  {uptimePercent !== null ? `${uptimePercent}%` : "—"}
+                </div>
+              </div>
+              <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 transition-all duration-150 hover:border-zinc-700">
+                <div className="text-zinc-400 text-sm">Active Sessions</div>
+                <div className="text-2xl font-bold text-zinc-100">
+                  {latestReport?.sessions?.active ?? 0}
+                </div>
+              </div>
+              <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 transition-all duration-150 hover:border-zinc-700">
+                <div className="text-zinc-400 text-sm">Cost Today</div>
+                <div className="text-2xl font-bold text-emerald-400">
+                  ${latestReport?.costs?.today?.toFixed(2) ?? "0.00"}
+                </div>
+                {latestReport?.tokens && (
+                  <div className="text-xs text-zinc-500 mt-1">
+                    {latestReport.tokens.output > 0 && `${(latestReport.tokens.output / 1000).toFixed(1)}K out`}
+                    {latestReport.tokens.input > 0 && ` / ${(latestReport.tokens.input / 1000).toFixed(1)}K in`}
+                  </div>
+                )}
+              </div>
+              <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 transition-all duration-150 hover:border-zinc-700">
+                <div className="text-zinc-400 text-sm">Cron Jobs</div>
+                <div className="text-2xl font-bold text-zinc-100">
+                  {latestReport?.crons?.enabled ?? 0}/{latestReport?.crons?.total ?? 0}
+                </div>
+              </div>
+            </div>
+
+            {/* System Health Card */}
+            {latestReport?.system?.hostname && (
+              <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 mb-4">
+                <div className="text-xs text-zinc-500 mb-2">System</div>
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <span className="text-zinc-300">🖥️ {latestReport.system.hostname}</span>
+                  {latestReport.system.memoryUsedPercent && (
+                    <span className="text-zinc-400">
+                      💾 {latestReport.system.memoryUsedPercent}% ({latestReport.system.memoryFreeMb}MB free)
+                    </span>
+                  )}
+                  {latestReport.system.diskUsedPercent && (
+                    <span className="text-zinc-400">
+                      💿 {latestReport.system.diskUsedPercent}% ({latestReport.system.diskFreeGb}GB free)
+                    </span>
+                  )}
+                  {latestReport.system.localIp && (
+                    <span className="text-zinc-400">
+                      🌐 {latestReport.system.localIp}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
               <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 transition-all duration-150 hover:border-zinc-700">
                 <div className="text-zinc-400 text-sm">Gateway</div>
                 <div className="text-2xl font-bold">
