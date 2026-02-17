@@ -7,7 +7,7 @@ const db = neon(process.env.DATABASE_URL || '');
 
 // Ensure tables exist
 async function ensureTables() {
-  if (!sql) {
+  if (!process.env.DATABASE_URL) {
     console.warn('DATABASE_URL not configured');
     return;
   }
@@ -55,9 +55,9 @@ interface ReportPayload {
 
 // Get workspace from API key
 async function getWorkspaceFromKey(apiKey: string) {
-  if (!sql) return null;
+  if (!process.env.DATABASE_URL) return null;
   
-  const result = await sql`
+  const result = await db`
     SELECT w.*, u.id as user_id 
     FROM workspaces w 
     JOIN users u ON w.user_id = u.id 
