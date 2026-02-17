@@ -136,6 +136,64 @@ export async function GET(
     return NextResponse.json({ workspace: result[0] });
   }
   
+  // Workspace settings (get/update)
+  if (path[0] === 'workspace' && path[1] === 'settings') {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Get user_id
+    const users = await db`
+      SELECT id FROM users WHERE email = ${session.user.email}
+    `;
+    if (users.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    const currentUserId = users[0].id;
+    
+    const url = new URL(request.url);
+    const workspaceId = url.searchParams.get('id');
+    
+    if (!workspaceId) {
+      return NextResponse.json({ error: 'Workspace ID required' }, { status: 400 });
+    }
+    
+    // Verify ownership
+    const verify = await db`
+      SELECT id FROM workspaces WHERE id = ${parseInt(workspaceId)} AND user_id = ${currentUserId}
+    `;
+    if (verify.length === 0) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    
+    // GET settings
+    if (request.method === 'GET') {
+      const settings = await db`
+        SELECT id, name, api_key, alert_cost_threshold, alert_downtime_minutes, slack_webhook_url
+        FROM workspaces WHERE id = ${parseInt(workspaceId)}
+      `;
+      return NextResponse.json({ workspace: settings[0] });
+    }
+    
+    // UPDATE settings
+    if (request.method === 'POST') {
+      const body = await request.json();
+      const { name, alert_cost_threshold, alert_downtime_minutes, slack_webhook_url } = body;
+      
+      await db`
+        UPDATE workspaces SET
+          name = COALESCE(${name}, name),
+          alert_cost_threshold = ${alert_cost_threshold ?? null},
+          alert_downtime_minutes = ${alert_downtime_minutes ?? 5},
+          slack_webhook_url = ${slack_webhook_url ?? null}
+        WHERE id = ${parseInt(workspaceId)}
+      `;
+      
+      return NextResponse.json({ success: true });
+    }
+  }
+  
   if (path[0] === 'dashboard' || path[0] === 'history') {
     // Get workspace ID from query param or use first workspace for logged-in user
     const url = new URL(request.url);
@@ -271,6 +329,43 @@ export async function POST(
           ${payload.costs?.month ?? null}
         )
       `;
+      
+      // Check alerts
+      if (workspace.alert_cost_threshold && payload.costs?.today > Number(workspace.alert_cost_threshold)) {
+        if (workspace.slack_webhook_url) {
+          await fetch(workspace.slack_webhook_url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: `💰 Cost Alert: $${payload.costs.today.toFixed(2)} today (threshold: $${workspace.alert_cost_threshold})`
+            })
+          }).catch(console.error);
+        }
+      }
+      
+      // Check uptime - get readings from last N minutes
+      if (workspace.alert_downtime_minutes) {
+        const cutoff = new Date(Date.now() - workspace.alert_downtime_minutes * 60 * 1000).toISOString();
+        const recentReadings = await db`
+          SELECT gateway_online FROM readings 
+          WHERE workspace_id = ${workspace.id} AND timestamp > ${cutoff}
+          ORDER BY timestamp DESC
+        `;
+        
+        // If most recent reading is offline and no online readings in window
+        if (recentReadings.length > 0 && !recentReadings[0].gateway_online) {
+          const hasOnline = recentReadings.some(r => r.gateway_online);
+          if (!hasOnline && workspace.slack_webhook_url) {
+            await fetch(workspace.slack_webhook_url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: `🔴 Downtime Alert: Gateway offline for ${workspace.alert_downtime_minutes}+ minutes`
+              })
+            }).catch(console.error);
+          }
+        }
+      }
       
       return NextResponse.json({ success: true });
     } catch (err) {

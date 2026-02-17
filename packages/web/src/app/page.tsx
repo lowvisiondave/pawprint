@@ -158,6 +158,13 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState<"dashboard" | "settings">("dashboard");
+  const [alertSettings, setAlertSettings] = useState({
+    alert_cost_threshold: "",
+    alert_downtime_minutes: "5",
+    slack_webhook_url: "",
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
 
   // Fetch workspaces
   useEffect(() => {
@@ -172,6 +179,23 @@ function Dashboard() {
         });
     }
   }, [status]);
+
+  // Fetch alert settings when workspace changes
+  useEffect(() => {
+    if (selectedWorkspace) {
+      fetch(`${API_URL}/api/v1/workspace/settings?id=${selectedWorkspace.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.workspace) {
+            setAlertSettings({
+              alert_cost_threshold: data.workspace.alert_cost_threshold?.toString() || "",
+              alert_downtime_minutes: data.workspace.alert_downtime_minutes?.toString() || "5",
+              slack_webhook_url: data.workspace.slack_webhook_url || "",
+            });
+          }
+        });
+    }
+  }, [selectedWorkspace]);
 
   // Fetch dashboard data
   useEffect(() => {
@@ -209,6 +233,32 @@ function Dashboard() {
       navigator.clipboard.writeText(selectedWorkspace.api_key);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  async function saveAlertSettings() {
+    if (!selectedWorkspace) return;
+    setSavingSettings(true);
+    try {
+      await fetch(`${API_URL}/api/v1/workspace/settings?id=${selectedWorkspace.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          alert_cost_threshold: alertSettings.alert_cost_threshold ? parseFloat(alertSettings.alert_cost_threshold) : null,
+          alert_downtime_minutes: parseInt(alertSettings.alert_downtime_minutes) || 5,
+          slack_webhook_url: alertSettings.slack_webhook_url || null,
+        }),
+      });
+      // Refresh workspace data
+      const res = await fetch(`${API_URL}/api/v1/workspaces`);
+      const data = await res.json();
+      setWorkspaces(data.workspaces || []);
+      const updated = data.workspaces?.find((w: Workspace) => w.id === selectedWorkspace?.id);
+      if (updated) setSelectedWorkspace(updated);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingSettings(false);
     }
   }
 
@@ -314,6 +364,22 @@ function Dashboard() {
             </button>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setActiveTab("dashboard")}
+              className={`px-3 py-1.5 rounded-lg text-sm ${
+                activeTab === "dashboard" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:text-zinc-100"
+              }`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab("settings")}
+              className={`px-3 py-1.5 rounded-lg text-sm ${
+                activeTab === "settings" ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:text-zinc-100"
+              }`}
+            >
+              Settings
+            </button>
             <span className="text-sm text-zinc-400">{session?.user?.name}</span>
             <button onClick={() => signOut()} className="text-zinc-400 hover:text-zinc-100 text-sm">
               Sign out
@@ -325,7 +391,88 @@ function Dashboard() {
       {/* Main content */}
       <main className="p-6">
         {loading ? (
-          <div className="text-center text-zinc-400 py-16">Loading dashboard...</div>
+          <div className="text-center text-zinc-400 py-16">Loading...</div>
+        ) : activeTab === "settings" ? (
+          // Settings tab
+          <div className="max-w-2xl">
+            <h2 className="text-xl font-semibold mb-6">Workspace Settings</h2>
+            
+            {/* API Key */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-4">
+              <div className="text-sm text-zinc-400 mb-2">Reporter API Key</div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-zinc-950 px-3 py-2 rounded font-mono text-sm">
+                  {selectedWorkspace?.api_key}
+                </code>
+                <button onClick={copyApiKey} className="bg-zinc-800 px-3 py-2 rounded text-sm hover:bg-zinc-700">
+                  {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+
+            {/* Alert Settings */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-4">
+              <h3 className="font-medium mb-4">🔔 Alert Settings</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">
+                    Cost Threshold ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={alertSettings.alert_cost_threshold}
+                    onChange={(e) => setAlertSettings({ ...alertSettings, alert_cost_threshold: e.target.value })}
+                    placeholder="e.g. 10.00"
+                    className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2"
+                  />
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Alert when daily cost exceeds this amount
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">
+                    Downtime Threshold (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={alertSettings.alert_downtime_minutes}
+                    onChange={(e) => setAlertSettings({ ...alertSettings, alert_downtime_minutes: e.target.value })}
+                    className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2"
+                  />
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Alert when gateway is offline for this long
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">
+                    Slack Webhook URL
+                  </label>
+                  <input
+                    type="url"
+                    value={alertSettings.slack_webhook_url}
+                    onChange={(e) => setAlertSettings({ ...alertSettings, slack_webhook_url: e.target.value })}
+                    placeholder="https://hooks.slack.com/services/..."
+                    className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2"
+                  />
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Optional: Send alerts to Slack
+                  </p>
+                </div>
+
+                <button
+                  onClick={saveAlertSettings}
+                  disabled={savingSettings}
+                  className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-lg font-medium disabled:opacity-50"
+                >
+                  {savingSettings ? "Saving..." : "Save Settings"}
+                </button>
+              </div>
+            </div>
+          </div>
         ) : (
           <>
             {/* Stats cards */}
@@ -412,22 +559,6 @@ function Dashboard() {
                 </div>
               </div>
             )}
-
-            {/* API Key section */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-6">
-              <div className="text-sm text-zinc-400 mb-2">Reporter API Key</div>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-zinc-950 px-3 py-2 rounded font-mono text-sm">
-                  {selectedWorkspace?.api_key}
-                </code>
-                <button onClick={copyApiKey} className="bg-zinc-800 px-3 py-2 rounded text-sm hover:bg-zinc-700">
-                  {copied ? "Copied!" : "Copy"}
-                </button>
-              </div>
-              <p className="text-xs text-zinc-500 mt-2">
-                Use this key in your reporter config: PAWPRINT_API_KEY={selectedWorkspace?.api_key}
-              </p>
-            </div>
 
             {/* Last report */}
             <div className="text-sm text-zinc-500">
