@@ -12,7 +12,7 @@ async function ensureTables() {
     return;
   }
   
-  await sql`
+  await db`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
@@ -23,7 +23,7 @@ async function ensureTables() {
     );
   `;
   
-  await sql`
+  await db`
     CREATE TABLE IF NOT EXISTS workspaces (
       id SERIAL PRIMARY KEY,
       user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -33,11 +33,11 @@ async function ensureTables() {
     );
   `;
   
-  await sql`
+  await db`
     ALTER TABLE readings ADD COLUMN IF NOT EXISTS workspace_id INT REFERENCES workspaces(id);
   `;
   
-  await sql`
+  await db`
     CREATE INDEX IF NOT EXISTS idx_readings_workspace ON readings(workspace_id, timestamp DESC);
   `;
 }
@@ -100,7 +100,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const workspaces = await sql`
+    const workspaces = await db`
       SELECT id, name, api_key, created_at 
       FROM workspaces 
       WHERE user_id = ${userId}
@@ -121,7 +121,7 @@ export async function GET(
     // Generate API key
     const apiKey = 'pk_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
     
-    const result = await sql`
+    const result = await db`
       INSERT INTO workspaces (user_id, name, api_key)
       VALUES (${userId}, ${name}, ${apiKey})
       RETURNING id, name, api_key, created_at
@@ -145,7 +145,7 @@ export async function GET(
     
     // Verify user owns workspace
     if (userId) {
-      const verify = await sql`
+      const verify = await db`
         SELECT id FROM workspaces WHERE id = ${workspaceId} AND user_id = ${userId}
       `;
       if (verify.length === 0) {
@@ -154,7 +154,7 @@ export async function GET(
     }
     
     if (path[0] === 'dashboard') {
-      const result = await sql`
+      const result = await db`
         SELECT * FROM readings 
         WHERE workspace_id = ${workspaceId}
         ORDER BY timestamp DESC 
@@ -188,7 +188,7 @@ export async function GET(
     }
     
     if (path[0] === 'history') {
-      const result = await sql`
+      const result = await db`
         SELECT * FROM readings 
         WHERE workspace_id = ${workspaceId}
         ORDER BY timestamp DESC 
@@ -237,7 +237,7 @@ export async function POST(
     try {
       const payload = await request.json() as ReportPayload;
       
-      await sql`
+      await db`
         INSERT INTO readings (
           workspace_id,
           timestamp, gateway_online, gateway_uptime,
