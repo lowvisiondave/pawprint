@@ -1,8 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
+import { auth } from '@/auth';
 
-// Initialize Neon database client
 const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
+
+// Ensure tables exist
+async function ensureTables() {
+  if (!sql) return;
+  
+  await sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT,
+      avatar_url TEXT,
+      github_id TEXT UNIQUE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `;
+  
+  await sql`
+    CREATE TABLE IF NOT EXISTS workspaces (
+      id SERIAL PRIMARY KEY,
+      user_id INT REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      api_key TEXT UNIQUE NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `;
+  
+  await sql`
+    ALTER TABLE readings ADD COLUMN IF NOT EXISTS workspace_id INT REFERENCES workspaces(id);
+  `;
+  
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_readings_workspace ON readings(workspace_id, timestamp DESC);
+  `;
+}
+
+ensureTables().catch(console.error);
 
 // Types matching reporter payload
 interface ReportPayload {
@@ -13,112 +49,168 @@ interface ReportPayload {
   costs: { today: number; month: number };
 }
 
-// Ensure table exists (run once on startup)
-async function ensureTable() {
-  if (!sql) return;
+// Get workspace from API key
+async function getWorkspaceFromKey(apiKey: string) {
+  if (!sql) return null;
   
-  await sql`
-    CREATE TABLE IF NOT EXISTS readings (
-      id SERIAL PRIMARY KEY,
-      timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      gateway_online BOOLEAN,
-      gateway_uptime INTEGER,
-      sessions_active INTEGER,
-      sessions_total INTEGER,
-      crons_enabled INTEGER,
-      crons_total INTEGER,
-      cost_today DECIMAL(10,4),
-      cost_month DECIMAL(10,4)
-    );
+  const result = await sql`
+    SELECT w.*, u.id as user_id 
+    FROM workspaces w 
+    JOIN users u ON w.user_id = u.id 
+    WHERE w.api_key = ${apiKey}
   `;
   
-  await sql`
-    CREATE INDEX IF NOT EXISTS idx_readings_timestamp ON readings(timestamp DESC);
-  `;
+  return result.length > 0 ? result[0] : null;
 }
 
-// Initialize on module load
-ensureTable().catch(console.error);
-
+// GET handler
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const path = (await params).path;
-  const authHeader = request.headers.get('Authorization');
   
-  if (!authHeader?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'Missing API key' }, { status: 401 });
+  // Check for workspace API key
+  const authHeader = request.headers.get('Authorization');
+  let workspaceId: number | null = null;
+  let userId: number | null = null;
+  
+  if (authHeader?.startsWith('Bearer ')) {
+    const apiKey = authHeader.slice(7);
+    const workspace = await getWorkspaceFromKey(apiKey);
+    if (workspace) {
+      workspaceId = workspace.id;
+      userId = workspace.user_id;
+    }
   }
   
-  const apiKey = authHeader.slice(7);
+  // Also check session auth
+  const session = await auth();
+  if (session?.user?.id) {
+    userId = parseInt(session.user.id);
+  }
   
-  if (path[0] === 'dashboard') {
-    if (!sql) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+  if (path[0] === 'workspaces') {
+    // List user's workspaces
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const result = await sql`
-      SELECT * FROM readings 
-      ORDER BY timestamp DESC 
-      LIMIT 1;
+    const workspaces = await sql`
+      SELECT id, name, api_key, created_at 
+      FROM workspaces 
+      WHERE user_id = ${userId}
     `;
     
-    if (result.length === 0) {
+    return NextResponse.json({ workspaces });
+  }
+  
+  if (path[0] === 'workspace' && path[1] === 'create') {
+    // Create workspace
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const url = new URL(request.url);
+    const name = url.searchParams.get('name') || 'My Agent';
+    
+    // Generate API key
+    const apiKey = 'pk_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    
+    const result = await sql`
+      INSERT INTO workspaces (user_id, name, api_key)
+      VALUES (${userId}, ${name}, ${apiKey})
+      RETURNING id, name, api_key, created_at
+    `;
+    
+    return NextResponse.json({ workspace: result[0] });
+  }
+  
+  if (path[0] === 'dashboard' || path[0] === 'history') {
+    // Need workspace ID
+    const url = new URL(request.url);
+    const wsId = url.searchParams.get('workspace_id');
+    
+    if (wsId) {
+      workspaceId = parseInt(wsId);
+    }
+    
+    if (!workspaceId) {
+      return NextResponse.json({ error: 'Workspace required' }, { status: 400 });
+    }
+    
+    // Verify user owns workspace
+    if (userId) {
+      const verify = await sql`
+        SELECT id FROM workspaces WHERE id = ${workspaceId} AND user_id = ${userId}
+      `;
+      if (verify.length === 0) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
+    
+    if (path[0] === 'dashboard') {
+      const result = await sql`
+        SELECT * FROM readings 
+        WHERE workspace_id = ${workspaceId}
+        ORDER BY timestamp DESC 
+        LIMIT 1;
+      `;
+      
+      if (result.length === 0) {
+        return NextResponse.json({
+          latestReport: null,
+          reportedAt: null,
+          gatewayOnline: false,
+          message: 'No reports received yet.',
+        });
+      }
+      
+      const row = result[0];
+      const ageMs = Date.now() - new Date(row.timestamp).getTime();
+      const gatewayOnline = ageMs < 10 * 60 * 1000;
+      
       return NextResponse.json({
-        latestReport: null,
-        reportedAt: null,
-        gatewayOnline: false,
-        message: 'No reports received yet.',
+        latestReport: {
+          timestamp: row.timestamp,
+          gateway: { online: row.gateway_online, uptime: row.gateway_uptime },
+          sessions: { active: row.sessions_active, total: row.sessions_total },
+          crons: { enabled: row.crons_enabled, total: row.crons_total },
+          costs: { today: Number(row.cost_today), month: Number(row.cost_month) },
+        },
+        reportedAt: row.timestamp,
+        gatewayOnline,
       });
     }
     
-    const row = result[0];
-    const ageMs = Date.now() - new Date(row.timestamp).getTime();
-    const gatewayOnline = ageMs < 10 * 60 * 1000;
-    
-    return NextResponse.json({
-      latestReport: {
-        timestamp: row.timestamp,
-        gateway: { online: row.gateway_online, uptime: row.gateway_uptime },
-        sessions: { active: row.sessions_active, total: row.sessions_total },
-        crons: { enabled: row.crons_enabled, total: row.crons_total },
-        costs: { today: Number(row.cost_today), month: Number(row.cost_month) },
-      },
-      reportedAt: row.timestamp,
-      gatewayOnline,
-    });
-  }
-  
-  if (path[0] === 'history') {
-    if (!sql) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+    if (path[0] === 'history') {
+      const result = await sql`
+        SELECT * FROM readings 
+        WHERE workspace_id = ${workspaceId}
+        ORDER BY timestamp DESC 
+        LIMIT 288;
+      `;
+      
+      return NextResponse.json({ 
+        history: result.map(row => ({
+          timestamp: row.timestamp,
+          gateway_online: row.gateway_online,
+          gateway_uptime: row.gateway_uptime,
+          sessions_active: row.sessions_active,
+          sessions_total: row.sessions_total,
+          crons_enabled: row.crons_enabled,
+          crons_total: row.crons_total,
+          cost_today: Number(row.cost_today),
+          cost_month: Number(row.cost_month),
+        }))
+      });
     }
-    
-    const result = await sql`
-      SELECT * FROM readings 
-      ORDER BY timestamp DESC 
-      LIMIT 288;
-    `;
-    
-    return NextResponse.json({ 
-      history: result.map(row => ({
-        timestamp: row.timestamp,
-        gateway_online: row.gateway_online,
-        gateway_uptime: row.gateway_uptime,
-        sessions_active: row.sessions_active,
-        sessions_total: row.sessions_total,
-        crons_enabled: row.crons_enabled,
-        crons_total: row.crons_total,
-        cost_today: Number(row.cost_today),
-        cost_month: Number(row.cost_month),
-      }))
-    });
   }
   
   return NextResponse.json({ error: 'Not found' }, { status: 404 });
 }
 
+// POST handler
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
@@ -130,11 +222,12 @@ export async function POST(
     return NextResponse.json({ error: 'Missing API key' }, { status: 401 });
   }
   
-  if (!sql) {
-    return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
-  }
-  
   const apiKey = authHeader.slice(7);
+  const workspace = await getWorkspaceFromKey(apiKey);
+  
+  if (!workspace) {
+    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+  }
   
   if (path[0] === 'report') {
     try {
@@ -142,11 +235,13 @@ export async function POST(
       
       await sql`
         INSERT INTO readings (
+          workspace_id,
           timestamp, gateway_online, gateway_uptime,
           sessions_active, sessions_total,
           crons_enabled, crons_total,
           cost_today, cost_month
         ) VALUES (
+          ${workspace.id},
           ${payload.timestamp || new Date().toISOString()},
           ${payload.gateway?.online ?? null},
           ${payload.gateway?.uptime ?? null},
@@ -159,9 +254,7 @@ export async function POST(
         )
       `;
       
-      return NextResponse.json({ 
-        success: true
-      });
+      return NextResponse.json({ success: true });
     } catch (err) {
       console.error('Report insert error:', err);
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
