@@ -157,7 +157,8 @@ function Dashboard({
       }
     }
     fetchDashboard();
-    const interval = setInterval(fetchDashboard, 30000);
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchDashboard, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [apiKey]);
 
