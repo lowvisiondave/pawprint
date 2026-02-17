@@ -7,8 +7,8 @@ const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     GitHubProvider({
-      clientId: process.env.GITHUB_ID,
-      clientSecret: process.env.GITHUB_SECRET,
+      clientId: process.env.GITHUB_ID || '',
+      clientSecret: process.env.GITHUB_SECRET || '',
     })
   ],
   callbacks: {
