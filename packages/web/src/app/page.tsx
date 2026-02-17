@@ -398,7 +398,7 @@ function Dashboard() {
                       <Tooltip
                         contentStyle={{ backgroundColor: "#18181b", border: "1px solid #3f3f46" }}
                         labelStyle={{ color: "#a1a1aa" }}
-                        formatter={(value: number) => [`$${value.toFixed(2)}`, "Cost"]}
+                        formatter={(value) => [`$${Number(value).toFixed(2)}`, "Cost"]}
                       />
                       <Line
                         type="monotone"
