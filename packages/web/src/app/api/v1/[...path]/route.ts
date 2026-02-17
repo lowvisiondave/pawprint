@@ -137,12 +137,20 @@ export async function GET(
   }
   
   if (path[0] === 'dashboard' || path[0] === 'history') {
-    // Need workspace ID
+    // Get workspace ID from query param or use first workspace for logged-in user
     const url = new URL(request.url);
     const wsId = url.searchParams.get('workspace_id');
     
     if (wsId) {
       workspaceId = parseInt(wsId);
+    } else if (userId) {
+      // Auto-select first workspace for logged-in user
+      const userWorkspaces = await db`
+        SELECT id FROM workspaces WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 1
+      `;
+      if (userWorkspaces.length > 0) {
+        workspaceId = userWorkspaces[0].id;
+      }
     }
     
     if (!workspaceId) {
