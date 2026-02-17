@@ -2,12 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { auth } from '@/auth';
 
-// Database client - throw if not configured
-const _sql = process.env.DATABASE_URL 
-  ? neon(process.env.DATABASE_URL) 
-  : (() => { throw new Error('DATABASE_URL not configured'); })();
-
-function sql() { return _sql; }
+// Database client
+const db = neon(process.env.DATABASE_URL || '');
 
 // Ensure tables exist
 async function ensureTables() {
