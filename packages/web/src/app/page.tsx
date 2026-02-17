@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Workspace {
   id: number;
@@ -20,6 +21,13 @@ interface DashboardData {
   } | null;
   reportedAt: string | null;
   gatewayOnline: boolean;
+}
+
+interface HistoryPoint {
+  timestamp: string;
+  gateway_online: boolean;
+  sessions_active: number;
+  cost_today: number;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://web-xi-khaki.vercel.app";
@@ -146,6 +154,7 @@ function Dashboard() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -168,9 +177,14 @@ function Dashboard() {
   useEffect(() => {
     if (selectedWorkspace) {
       setLoading(true);
-      fetch(`${API_URL}/api/v1/dashboard?workspace_id=${selectedWorkspace.id}`)
-        .then((res) => res.json())
-        .then(setData)
+      Promise.all([
+        fetch(`${API_URL}/api/v1/dashboard?workspace_id=${selectedWorkspace.id}`).then((r) => r.json()),
+        fetch(`${API_URL}/api/v1/history?workspace_id=${selectedWorkspace.id}`).then((r) => r.json()),
+      ])
+        .then(([dashData, histData]) => {
+          setData(dashData);
+          setHistory(histData.history || []);
+        })
         .finally(() => setLoading(false));
     }
   }, [selectedWorkspace]);
@@ -179,9 +193,13 @@ function Dashboard() {
   useEffect(() => {
     if (!selectedWorkspace) return;
     const interval = setInterval(() => {
-      fetch(`${API_URL}/api/v1/dashboard?workspace_id=${selectedWorkspace.id}`)
-        .then((res) => res.json())
-        .then(setData);
+      Promise.all([
+        fetch(`${API_URL}/api/v1/dashboard?workspace_id=${selectedWorkspace.id}`).then((r) => r.json()),
+        fetch(`${API_URL}/api/v1/history?workspace_id=${selectedWorkspace.id}`).then((r) => r.json()),
+      ]).then(([dashData, histData]) => {
+        setData(dashData);
+        setHistory(histData.history || []);
+      });
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [selectedWorkspace]);
@@ -193,6 +211,22 @@ function Dashboard() {
       setTimeout(() => setCopied(false), 2000);
     }
   }
+
+  // Calculate uptime
+  const uptimePercent = history.length > 0
+    ? Math.round((history.filter((h) => h.gateway_online).length / history.length) * 100)
+    : null;
+
+  // Format chart data
+  const chartData = history
+    .slice()
+    .reverse()
+    .map((h) => ({
+      time: new Date(h.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      sessions: h.sessions_active,
+      cost: h.cost_today,
+      online: h.gateway_online ? 1 : 0,
+    }));
 
   if (status === "loading") {
     return (
@@ -280,13 +314,8 @@ function Dashboard() {
             </button>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-zinc-400">
-              {session?.user?.name}
-            </span>
-            <button
-              onClick={() => signOut()}
-              className="text-zinc-400 hover:text-zinc-100 text-sm"
-            >
+            <span className="text-sm text-zinc-400">{session?.user?.name}</span>
+            <button onClick={() => signOut()} className="text-zinc-400 hover:text-zinc-100 text-sm">
               Sign out
             </button>
           </div>
@@ -300,7 +329,7 @@ function Dashboard() {
         ) : (
           <>
             {/* Stats cards */}
-            <div className="grid grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-5 gap-4 mb-8">
               <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
                 <div className="text-zinc-400 text-sm">Gateway</div>
                 <div className="text-2xl font-bold">
@@ -309,6 +338,12 @@ function Dashboard() {
                   ) : (
                     <span className="text-red-400">🔴 Offline</span>
                   )}
+                </div>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                <div className="text-zinc-400 text-sm">Uptime (24h)</div>
+                <div className="text-2xl font-bold text-zinc-100">
+                  {uptimePercent !== null ? `${uptimePercent}%` : "—"}
                 </div>
               </div>
               <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
@@ -331,6 +366,53 @@ function Dashboard() {
               </div>
             </div>
 
+            {/* Charts */}
+            {chartData.length > 0 && (
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-zinc-400 mb-4">Sessions (24h)</h3>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <LineChart data={chartData}>
+                      <XAxis dataKey="time" stroke="#71717a" fontSize={12} />
+                      <YAxis stroke="#71717a" fontSize={12} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#18181b", border: "1px solid #3f3f46" }}
+                        labelStyle={{ color: "#a1a1aa" }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="sessions"
+                        stroke="#22c55e"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-zinc-400 mb-4">Cost (24h)</h3>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <LineChart data={chartData}>
+                      <XAxis dataKey="time" stroke="#71717a" fontSize={12} />
+                      <YAxis stroke="#71717a" fontSize={12} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#18181b", border: "1px solid #3f3f46" }}
+                        labelStyle={{ color: "#a1a1aa" }}
+                        formatter={(value: number) => [`$${value.toFixed(2)}`, "Cost"]}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="cost"
+                        stroke="#f59e0b"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
             {/* API Key section */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-6">
               <div className="text-sm text-zinc-400 mb-2">Reporter API Key</div>
@@ -338,10 +420,7 @@ function Dashboard() {
                 <code className="flex-1 bg-zinc-950 px-3 py-2 rounded font-mono text-sm">
                   {selectedWorkspace?.api_key}
                 </code>
-                <button
-                  onClick={copyApiKey}
-                  className="bg-zinc-800 px-3 py-2 rounded text-sm hover:bg-zinc-700"
-                >
+                <button onClick={copyApiKey} className="bg-zinc-800 px-3 py-2 rounded text-sm hover:bg-zinc-700">
                   {copied ? "Copied!" : "Copy"}
                 </button>
               </div>
@@ -352,7 +431,8 @@ function Dashboard() {
 
             {/* Last report */}
             <div className="text-sm text-zinc-500">
-              Last report: {reportedAt ? new Date(reportedAt).toLocaleString() : "Never"}
+              Last report: {reportedAt ? new Date(reportedAt).toLocaleString() : "Never"} •{" "}
+              {history.length} readings
             </div>
           </>
         )}
