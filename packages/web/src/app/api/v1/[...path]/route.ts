@@ -1,56 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Redis } from '@upstash/redis';
+import { neon } from '@neondatabase/serverless';
 
-// Initialize Redis - try Upstash first, then Vercel KV
-let redis: Redis;
+// Initialize Neon database client
+const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
 
-if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-  redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-  });
-} else if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-  // Fallback to Vercel KV (deprecated)
-  redis = new Redis({
-    url: process.env.KV_REST_API_URL,
-    token: process.env.KV_REST_API_TOKEN,
-  });
-} else {
-  throw new Error('No Redis configuration found. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN or KV_REST_API_URL and KV_REST_API_TOKEN');
-}
-
-// Types
-interface Session {
-  key: string;
-  kind: 'direct' | 'group';
-  model: string;
-  tokensUsed: number;
-  tokensMax: number;
-  lastActivity: string;
-}
-
-interface CronJob {
-  id: string;
-  name: string;
-  schedule: string;
-  enabled: boolean;
-  lastRunAt?: string;
-  lastStatus?: 'ok' | 'error';
-  nextRunAt?: string;
-  consecutiveErrors: number;
-}
-
+// Types matching reporter payload
 interface ReportPayload {
-  sessions: Session[];
-  crons: CronJob[];
   timestamp: string;
-  agentId: string;
+  gateway: { online: boolean; uptime: number };
+  sessions: { active: number; total: number };
+  crons: { enabled: number; total: number };
+  costs: { today: number; month: number };
 }
 
-// KV keys
-const KEY_LATEST = (apiKey: string) => `report:${apiKey}:latest`;
-const KEY_HISTORY = (apiKey: string) => `report:${apiKey}:history`;
-const MAX_HISTORY = 288; // 24 hours at 5-min intervals
+// Ensure table exists (run once on startup)
+async function ensureTable() {
+  if (!sql) return;
+  
+  await sql`
+    CREATE TABLE IF NOT EXISTS readings (
+      id SERIAL PRIMARY KEY,
+      timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      gateway_online BOOLEAN,
+      gateway_uptime INTEGER,
+      sessions_active INTEGER,
+      sessions_total INTEGER,
+      crons_enabled INTEGER,
+      crons_total INTEGER,
+      cost_today DECIMAL(10,4),
+      cost_month DECIMAL(10,4)
+    );
+  `;
+  
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_readings_timestamp ON readings(timestamp DESC);
+  `;
+}
+
+// Initialize on module load
+ensureTable().catch(console.error);
 
 export async function GET(
   request: NextRequest,
@@ -66,9 +54,17 @@ export async function GET(
   const apiKey = authHeader.slice(7);
   
   if (path[0] === 'dashboard') {
-    const latest = await redis.get<{ payload: ReportPayload; receivedAt: string }>(KEY_LATEST(apiKey));
+    if (!sql) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+    }
     
-    if (!latest) {
+    const result = await sql`
+      SELECT * FROM readings 
+      ORDER BY timestamp DESC 
+      LIMIT 1;
+    `;
+    
+    if (result.length === 0) {
       return NextResponse.json({
         latestReport: null,
         reportedAt: null,
@@ -77,34 +73,46 @@ export async function GET(
       });
     }
     
-    const ageMs = Date.now() - new Date(latest.receivedAt).getTime();
+    const row = result[0];
+    const ageMs = Date.now() - new Date(row.timestamp).getTime();
     const gatewayOnline = ageMs < 10 * 60 * 1000;
     
     return NextResponse.json({
-      latestReport: latest.payload,
-      reportedAt: latest.receivedAt,
+      latestReport: {
+        timestamp: row.timestamp,
+        gateway: { online: row.gateway_online, uptime: row.gateway_uptime },
+        sessions: { active: row.sessions_active, total: row.sessions_total },
+        crons: { enabled: row.crons_enabled, total: row.crons_total },
+        costs: { today: Number(row.cost_today), month: Number(row.cost_month) },
+      },
+      reportedAt: row.timestamp,
       gatewayOnline,
     });
   }
   
-  if (path[0] === 'sessions') {
-    const latest = await redis.get<{ payload: ReportPayload; receivedAt: string }>(KEY_LATEST(apiKey));
-    return NextResponse.json({ 
-      sessions: latest?.payload.sessions || [] 
-    });
-  }
-  
-  if (path[0] === 'crons') {
-    const latest = await redis.get<{ payload: ReportPayload; receivedAt: string }>(KEY_LATEST(apiKey));
-    return NextResponse.json({ 
-      crons: latest?.payload.crons || [] 
-    });
-  }
-  
   if (path[0] === 'history') {
-    const history = await redis.lrange<{ payload: ReportPayload; receivedAt: string }>(KEY_HISTORY(apiKey), 0, -1);
+    if (!sql) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+    }
+    
+    const result = await sql`
+      SELECT * FROM readings 
+      ORDER BY timestamp DESC 
+      LIMIT 288;
+    `;
+    
     return NextResponse.json({ 
-      history: history || [] 
+      history: result.map(row => ({
+        timestamp: row.timestamp,
+        gateway_online: row.gateway_online,
+        gateway_uptime: row.gateway_uptime,
+        sessions_active: row.sessions_active,
+        sessions_total: row.sessions_total,
+        crons_enabled: row.crons_enabled,
+        crons_total: row.crons_total,
+        cost_today: Number(row.cost_today),
+        cost_month: Number(row.cost_month),
+      }))
     });
   }
   
@@ -122,34 +130,40 @@ export async function POST(
     return NextResponse.json({ error: 'Missing API key' }, { status: 401 });
   }
   
+  if (!sql) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+  }
+  
   const apiKey = authHeader.slice(7);
   
   if (path[0] === 'report') {
     try {
       const payload = await request.json() as ReportPayload;
-      const receivedAt = new Date().toISOString();
       
-      const report = { payload, receivedAt };
-      
-      // Store latest report
-      await redis.set(KEY_LATEST(apiKey), JSON.stringify(report));
-      
-      // Add to history (LPUSH + LTRIM to keep last N)
-      await redis.lpush(KEY_HISTORY(apiKey), JSON.stringify(report));
-      await redis.ltrim(KEY_HISTORY(apiKey), 0, MAX_HISTORY - 1);
-      
-      // Set TTL of 25 hours for auto-cleanup
-      await redis.expire(KEY_LATEST(apiKey), 25 * 60 * 60);
-      await redis.expire(KEY_HISTORY(apiKey), 25 * 60 * 60);
+      await sql`
+        INSERT INTO readings (
+          timestamp, gateway_online, gateway_uptime,
+          sessions_active, sessions_total,
+          crons_enabled, crons_total,
+          cost_today, cost_month
+        ) VALUES (
+          ${payload.timestamp || new Date().toISOString()},
+          ${payload.gateway?.online ?? null},
+          ${payload.gateway?.uptime ?? null},
+          ${payload.sessions?.active ?? null},
+          ${payload.sessions?.total ?? null},
+          ${payload.crons?.enabled ?? null},
+          ${payload.crons?.total ?? null},
+          ${payload.costs?.today ?? null},
+          ${payload.costs?.month ?? null}
+        )
+      `;
       
       return NextResponse.json({ 
-        success: true, 
-        received: {
-          sessions: payload.sessions.length,
-          crons: payload.crons.length,
-        }
+        success: true
       });
-    } catch {
+    } catch (err) {
+      console.error('Report insert error:', err);
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
   }
