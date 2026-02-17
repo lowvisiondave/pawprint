@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
-import { auth } from '@/auth';
+import { getServerSession } from "next-auth"
+import { authOptions } from '@/auth';
 
 // Database client
 const db = neon(process.env.DATABASE_URL || '');
@@ -89,7 +90,7 @@ export async function GET(
   }
   
   // Also check session auth
-  const session = await auth();
+  const session = await getServerSession(authOptions);
   if (session?.user?.id) {
     userId = parseInt(session.user.id);
   }
