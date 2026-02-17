@@ -33,8 +33,11 @@ interface DashboardData {
   gatewayOnline: boolean;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "demo-key";
+
+// Use relative URL for same-origin (Vercel deployment)
+// Use absolute URL for local development
+const API_URL = process.env.NEXT_PUBLIC_API_URL || ""; // empty = same origin
 
 export default function Home() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -44,7 +47,7 @@ export default function Home() {
   useEffect(() => {
     async function fetchDashboard() {
       try {
-        const res = await fetch(`${API_URL}/v1/dashboard`, {
+        const res = await fetch(`${API_URL}/api/v1/dashboard`, {
           headers: {
             Authorization: `Bearer ${API_KEY}`,
           },
