@@ -1,21 +1,10 @@
-import NextAuth from "next-auth"
 import GitHubProvider from "next-auth/providers/github"
 import { neon } from "@neondatabase/serverless"
+import type { NextAuthOptions } from "next-auth"
 
 const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
 
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id?: string
-      name?: string | null
-      email?: string | null
-      image?: string | null
-    }
-  }
-}
-
-const authOptions = {
+export const authOptions: NextAuthOptions = {
   providers: [
     GitHubProvider({
       clientId: process.env.GITHUB_ID || '',
@@ -23,7 +12,7 @@ const authOptions = {
     })
   ],
   callbacks: {
-    async signIn({ user }: { user: any }) {
+    async signIn({ user }) {
       if (!sql) return true
       
       const existing = await sql`
@@ -39,7 +28,7 @@ const authOptions = {
       
       return true
     },
-    async session({ session }: { session: any }) {
+    async session({ session }) {
       if (!sql || !session.user?.email) return session
       
       const users = await sql`
@@ -47,14 +36,10 @@ const authOptions = {
       `
       
       if (users.length > 0) {
-        session.user.id = users[0].id.toString()
+        (session.user as any).id = users[0].id.toString()
       }
       
       return session
     }
   }
 }
-
-export const auth = NextAuth(authOptions)
-
-export { auth as GET, auth as POST }
