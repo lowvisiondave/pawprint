@@ -1,3 +1,4 @@
+import NextAuth from "next-auth"
 import GitHubProvider from "next-auth/providers/github"
 import { neon } from "@neondatabase/serverless"
 import type { NextAuthOptions } from "next-auth"
@@ -43,3 +44,5 @@ export const authOptions: NextAuthOptions = {
     }
   }
 }
+
+export const auth = NextAuth(authOptions)
