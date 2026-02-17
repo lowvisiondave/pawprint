@@ -1,0 +1,16 @@
+{
+  "name": "@pawprint/reporter",
+  "version": "0.1.0",
+  "description": "OpenClaw stats reporter for pawprint",
+  "type": "module",
+  "main": "reporter.ts",
+  "scripts": {
+    "start": "npx tsx reporter.ts",
+    "dev": "npx tsx watch reporter.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}
