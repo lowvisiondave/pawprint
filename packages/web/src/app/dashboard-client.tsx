@@ -403,18 +403,98 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
           )}
 
           {activeTab === "install" && (
-            <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6 max-w-2xl">
-              <h2 className="text-xl font-bold mb-6">📥 Install Reporter</h2>
-              <div className="space-y-4">
-                <p className="text-zinc-400">Add this cron job to your OpenClaw deployment to report metrics:</p>
-                <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 overflow-x-auto">
-                  <code className="text-sm text-emerald-400 whitespace-nowrap">
-                    */5 * * * * cd /home/dave/repos/pawprint/packages/reporter && node reporter.ts --workspace 1
-                  </code>
+            <div className="space-y-6 max-w-2xl">
+              {/* Quick Setup */}
+              <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
+                <h2 className="text-xl font-bold mb-4">🐾 Quick Setup (2 minutes)</h2>
+                
+                <div className="space-y-4">
+                  <div className="bg-zinc-900/50 rounded-xl p-4">
+                    <div className="text-sm text-zinc-400 mb-2">Step 1: Copy Your API Key</div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 font-mono text-emerald-400 text-sm">
+                        pk_test_12345678
+                      </code>
+                      <button
+                        onClick={() => navigator.clipboard.writeText("pk_test_12345678")}
+                        className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm transition-colors"
+                      >
+                        📋 Copy
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-900/50 rounded-xl p-4">
+                    <div className="text-sm text-zinc-400 mb-2">Step 2: Run the Installer</div>
+                    <p className="text-xs text-zinc-500 mb-3">Open a terminal on your OpenClaw host and run:</p>
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 overflow-x-auto">
+                      <code className="text-xs text-emerald-400 whitespace-nowrap">
+                        curl -fsSL https://pawprint.dev/install.sh | bash -s pk_test_12345678
+                      </code>
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-900/50 rounded-xl p-4">
+                    <div className="text-sm text-zinc-400 mb-2">Step 3: Verify It's Working</div>
+                    <p className="text-xs text-zinc-500">The installer will:</p>
+                    <ul className="text-xs text-zinc-400 mt-2 space-y-1">
+                      <li>✓ Download the reporter</li>
+                      <li>✓ Test the connection</li>
+                      <li>✓ Set up automatic reporting (every 5 min)</li>
+                    </ul>
+                  </div>
+
+                  <p className="text-sm text-emerald-400">
+                    You should see "Report posted successfully" — then check your dashboard!
+                  </p>
                 </div>
-                <p className="text-xs text-zinc-500">
-                  This runs every 5 minutes and sends metrics to your dashboard.
-                </p>
+              </div>
+
+              {/* Manual Setup */}
+              <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-4">📋 Manual Setup</h2>
+                <p className="text-sm text-zinc-400 mb-4">If you prefer not to use the installer:</p>
+                
+                <div className="space-y-3 text-sm">
+                  <div className="bg-zinc-900/50 rounded-lg p-3">
+                    <div className="text-zinc-400 mb-1">1. Download the reporter:</div>
+                    <code className="text-xs text-emerald-400">mkdir -p ~/.openclaw/pawprint && curl -o ~/.openclaw/pawprint/reporter.ts https://raw.githubusercontent.com/lowvisiondave/pawprint/main/packages/reporter/reporter.ts</code>
+                  </div>
+                  
+                  <div className="bg-zinc-900/50 rounded-lg p-3">
+                    <div className="text-zinc-400 mb-1">2. Set your API key:</div>
+                    <code className="text-xs text-emerald-400">echo "PAWPRINT_API_KEY=pk_test_12345678" &gt; ~/.openclaw/pawprint/.env</code>
+                  </div>
+                  
+                  <div className="bg-zinc-900/50 rounded-lg p-3">
+                    <div className="text-zinc-400 mb-1">3. Test it:</div>
+                    <code className="text-xs text-emerald-400">cd ~/.openclaw/pawprint && npx tsx reporter.ts</code>
+                  </div>
+                  
+                  <div className="bg-zinc-900/50 rounded-lg p-3">
+                    <div className="text-zinc-400 mb-1">4. Add to cron (every 5 min):</div>
+                    <code className="text-xs text-emerald-400">(crontab -l; echo "*/5 * * * * cd ~/.openclaw/pawprint && npx tsx reporter.ts") | crontab -</code>
+                  </div>
+                </div>
+              </div>
+
+              {/* Troubleshooting */}
+              <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-4">❓ Troubleshooting</h2>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <div className="text-zinc-300">"OpenClaw directory not found"</div>
+                    <div className="text-zinc-500 text-xs">Make sure OpenClaw is installed (~/.openclaw should exist)</div>
+                  </div>
+                  <div>
+                    <div className="text-zinc-300">"API error 401"</div>
+                    <div className="text-zinc-500 text-xs">Check your API key is correct</div>
+                  </div>
+                  <div>
+                    <div className="text-zinc-300">"npx: command not found"</div>
+                    <div className="text-zinc-500 text-xs">Install Node.js: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash - && sudo apt install nodejs</div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
