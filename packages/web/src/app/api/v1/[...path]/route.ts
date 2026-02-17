@@ -91,8 +91,13 @@ export async function GET(
   
   // Also check session auth
   const session = await getServerSession(authOptions);
-  if (session?.user?.id) {
-    userId = parseInt(session.user.id);
+  if (session?.user?.email) {
+    const users = await db`
+      SELECT id FROM users WHERE email = ${session.user.email}
+    `;
+    if (users.length > 0) {
+      userId = users[0].id;
+    }
   }
   
   if (path[0] === 'workspaces') {
