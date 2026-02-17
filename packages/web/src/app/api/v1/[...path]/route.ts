@@ -98,7 +98,7 @@ export async function POST(
   
   if (path[0] === 'report') {
     try {
-      const payload = await request.json<ReportPayload>();
+      const payload = await request.json() as ReportPayload;
       
       reports.set(apiKey, {
         payload,
