@@ -23,7 +23,7 @@ const authOptions = {
     })
   ],
   callbacks: {
-    async signIn({ user }) {
+    async signIn({ user }: { user: any }) {
       if (!sql) return true
       
       const existing = await sql`
