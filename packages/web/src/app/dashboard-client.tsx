@@ -289,7 +289,6 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                             borderRadius: "12px",
                             backdropFilter: "blur(10px)"
                           }}
-                          formatter={(v: number, name) => [name === "cost_today" ? `$${v.toFixed(2)}` : v, name === "cost_today" ? "Cost" : "Sessions"]}
                         />
                         <Line 
                           type="monotone" 
@@ -324,7 +323,6 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                             borderRadius: "12px",
                             backdropFilter: "blur(10px)"
                           }}
-                          formatter={(v: number) => [v, "Sessions"]}
                         />
                         <Line 
                           type="monotone" 
