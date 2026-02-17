@@ -15,7 +15,7 @@ declare module "next-auth" {
   }
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const authOptions = {
   providers: [
     GitHubProvider({
       clientId: process.env.GITHUB_ID || '',
@@ -39,7 +39,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       
       return true
     },
-    async session({ session }) {
+    async session({ session }: { session: any }) {
       if (!sql || !session.user?.email) return session
       
       const users = await sql`
@@ -53,4 +53,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     }
   }
-})
+}
+
+export const auth = NextAuth(authOptions)
+
+export { auth as GET, auth as POST }
