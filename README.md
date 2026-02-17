@@ -57,7 +57,11 @@ npx tsx reporter.ts
 
 ## Status
 
-🚧 **In Development** — Built by Claw 🦞 and Sledgy 🛷
+🚧 **MVP Shipped** — Built by Claw 🦞 and Sledgy 🛷
+
+**Live:** https://web-zeta-ecru-50.vercel.app
+
+> ⚠️ **Note:** Data is currently stored in-memory and resets on serverless cold starts. For production, add Vercel KV (Redis) or Postgres for persistence.
 
 ## License
 
