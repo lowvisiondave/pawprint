@@ -136,11 +136,12 @@ function Dashboard({
   onLogout: () => void
 }) {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   async function fetchDashboard() {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`${API_URL}/api/v1/dashboard`, {
         headers: {
@@ -157,23 +158,36 @@ function Dashboard({
     }
   }
 
+  useEffect(() => {
+    fetchDashboard();
+  }, [apiKey]);
+
+  // Auto-refresh every 5 minutes
+  useEffect(() => {
+    const interval = setInterval(fetchDashboard, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [apiKey]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-        <div className="text-zinc-400">Loading...</div>
+        <div className="text-zinc-400">Loading dashboard...</div>
       </div>
     );
   }
 
-  if (!data) {
+  if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-        <button 
-          onClick={fetchDashboard}
-          className="bg-zinc-100 text-zinc-900 px-6 py-3 rounded-lg font-medium hover:bg-zinc-200"
-        >
-          Load Dashboard
-        </button>
+        <div className="text-center">
+          <div className="text-red-400 mb-4">{error}</div>
+          <button 
+            onClick={fetchDashboard}
+            className="bg-zinc-100 text-zinc-900 px-4 py-2 rounded-lg hover:bg-zinc-200"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
