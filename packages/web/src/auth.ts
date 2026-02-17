@@ -4,6 +4,17 @@ import { neon } from "@neondatabase/serverless"
 
 const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null
 
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id?: string
+      name?: string | null
+      email?: string | null
+      image?: string | null
+    }
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     GitHubProvider({
