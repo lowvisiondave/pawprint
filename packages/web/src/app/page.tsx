@@ -52,7 +52,7 @@ function LandingPage() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 sm:mb-16">
           <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-6 transition-all duration-150 hover:border-zinc-700 hover:bg-zinc-800/50">
             <div className="text-3xl mb-3">📊</div>
             <h3 className="text-lg font-semibold mb-2">Session Tracking</h3>
@@ -173,6 +173,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [activeTab, setActiveTab] = useState<"dashboard" | "settings">("dashboard");
   const [alertSettings, setAlertSettings] = useState({
     alert_cost_threshold: "",
@@ -353,10 +354,10 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       {/* Header */}
-      <header className="border-b border-zinc-800 px-6 py-4 backdrop-blur-sm bg-zinc-950/80 sticky top-0 z-40">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-xl font-bold">🐾 PawPrint</h1>
+      <header className="border-b border-zinc-800 px-4 sm:px-6 py-3 sm:py-4 backdrop-blur-sm bg-zinc-950/80 sticky top-0 z-40">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <h1 className="text-lg sm:text-xl font-bold">🐾 PawPrint</h1>
             <div className="relative">
               <label htmlFor="workspace-select" className="sr-only">Select workspace</label>
               <select
@@ -366,7 +367,7 @@ function Dashboard() {
                   const ws = workspaces.find((w) => w.id === parseInt(e.target.value));
                   setSelectedWorkspace(ws || null);
                 }}
-                className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm pr-8 focus-visible:ring-2 focus-visible:ring-zinc-400 transition-all duration-150 appearance-none cursor-pointer"
+                className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 sm:px-3 py-1.5 text-sm pr-6 sm:pr-8 focus-visible:ring-2 focus-visible:ring-zinc-400 transition-all duration-150 appearance-none cursor-pointer max-w-[120px] sm:max-w-none"
               >
                 {workspaces.map((ws) => (
                   <option key={ws.id} value={ws.id}>
@@ -387,10 +388,10 @@ function Dashboard() {
               + New
             </button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
             <button
               onClick={() => setActiveTab("dashboard")}
-              className={`px-3 py-1.5 rounded-lg text-sm transition-all duration-150 ${
+              className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all duration-150 whitespace-nowrap ${
                 activeTab === "dashboard" 
                   ? "bg-zinc-800 text-zinc-100" 
                   : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50"
@@ -400,7 +401,7 @@ function Dashboard() {
             </button>
             <button
               onClick={() => setActiveTab("settings")}
-              className={`px-3 py-1.5 rounded-lg text-sm transition-all duration-150 ${
+              className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all duration-150 whitespace-nowrap ${
                 activeTab === "settings" 
                   ? "bg-zinc-800 text-zinc-100" 
                   : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50"
@@ -408,9 +409,9 @@ function Dashboard() {
             >
               Settings
             </button>
-            <span className="text-zinc-600 mx-2">|</span>
-            <span className="text-sm text-zinc-400">{session?.user?.name}</span>
-            <button onClick={() => signOut()} className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors duration-150">
+            <span className="text-zinc-600 mx-1">|</span>
+            <span className="text-xs sm:text-sm text-zinc-400 hidden sm:inline">{session?.user?.name}</span>
+            <button onClick={() => signOut()} className="text-zinc-400 hover:text-zinc-100 text-xs sm:text-sm transition-colors duration-150 whitespace-nowrap">
               Sign out
             </button>
           </div>
@@ -430,9 +431,16 @@ function Dashboard() {
             <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 mb-4">
               <div className="text-sm text-zinc-400 mb-2">Reporter API Key</div>
               <div className="flex items-center gap-2">
-                <code className="flex-1 bg-zinc-950 px-3 py-2 rounded font-mono text-sm">
-                  {selectedWorkspace?.api_key}
+                <code className="flex-1 bg-zinc-950 px-3 py-2 rounded font-mono text-sm break-all">
+                  {showApiKey ? selectedWorkspace?.api_key : "••••••••••••••••••••••••••••••••"}
                 </code>
+                <button 
+                  onClick={() => setShowApiKey(!showApiKey)} 
+                  className="bg-zinc-800 px-3 py-2 rounded text-sm hover:bg-zinc-700 transition-colors duration-150 shrink-0"
+                  aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                >
+                  {showApiKey ? "Hide" : "Show"}
+                </button>
                 <button 
                   onClick={copyApiKey} 
                   className="bg-zinc-800 px-3 py-2 rounded text-sm hover:bg-zinc-700 transition-colors duration-150"
@@ -512,7 +520,7 @@ function Dashboard() {
           // Dashboard tab
           <>
             {/* Stats cards */}
-            <div className="grid grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
               <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 transition-all duration-150 hover:border-zinc-700">
                 <div className="text-zinc-400 text-sm">Gateway</div>
                 <div className="text-2xl font-bold">
@@ -551,7 +559,7 @@ function Dashboard() {
 
             {/* Charts */}
             {chartData.length > 0 && (
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
                 <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
                   <h3 className="text-sm font-medium text-zinc-400 mb-4">Sessions (24h)</h3>
                   <ResponsiveContainer width="100%" height={150}>
