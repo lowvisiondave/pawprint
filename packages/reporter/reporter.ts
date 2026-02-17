@@ -1,55 +1,35 @@
 /**
  * pawprint reporter 🐾
  * 
- * Collects OpenClaw session and cron data, posts to pawprint API.
+ * Collects OpenClaw gateway data and posts to pawprint API.
  * Install as a cron job in your OpenClaw instance.
  * 
  * Usage: npx tsx reporter.ts
  * 
  * Environment:
  *   PAWPRINT_API_KEY - Your pawprint API key
- *   PAWPRINT_API_URL - API endpoint (default: https://api.pawprint.dev)
+ *   PAWPRINT_API_URL - API endpoint (default: https://web-xi-khaki.vercel.app/api)
  */
 
 import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
-import { join, resolve } from 'path';
-
-interface Session {
-  key: string;
-  kind: 'direct' | 'group';
-  model: string;
-  tokensUsed: number;
-  tokensMax: number;
-  lastActivity: string;
-}
-
-interface CronJob {
-  id: string;
-  name: string;
-  schedule: string;
-  enabled: boolean;
-  lastRunAt?: string;
-  lastStatus?: 'ok' | 'error';
-  nextRunAt?: string;
-  consecutiveErrors: number;
-}
+import { join } from 'path';
 
 interface ReportPayload {
-  sessions: Session[];
-  crons: CronJob[];
   timestamp: string;
-  agentId: string;
+  gateway: { online: boolean; uptime: number };
+  sessions: { active: number; total: number };
+  crons: { enabled: number; total: number };
+  costs: { today: number; month: number };
 }
 
-const API_URL = process.env.PAWPRINT_API_URL || 'https://web-zeta-ecru-50.vercel.app/api';
+const API_URL = process.env.PAWPRINT_API_URL || 'https://web-xi-khaki.vercel.app/api';
 const API_KEY = process.env.PAWPRINT_API_KEY;
 
 function getOpenClawDir(): string {
-  // Check common locations
   const candidates = [
     join(homedir(), '.openclaw'),
-    '/home/dave/.openclaw', // fallback
+    '/home/dave/.openclaw',
   ];
   
   for (const dir of candidates) {
@@ -59,97 +39,86 @@ function getOpenClawDir(): string {
   throw new Error('OpenClaw directory not found');
 }
 
-function collectSessions(openclawDir: string): Session[] {
-  const sessions: Session[] = [];
-  const agentsDir = join(openclawDir, 'agents');
+function countSessions(openclawDir: string): { active: number; total: number } {
+  const sessionsDir = join(openclawDir, 'agents', 'main', 'sessions');
   
-  if (!existsSync(agentsDir)) {
-    console.warn('No agents directory found');
-    return sessions;
+  if (!existsSync(sessionsDir)) {
+    return { active: 0, total: 0 };
   }
   
-  // Find all agent session files
-  const agents = ['main']; // TODO: discover all agents
-  
-  for (const agent of agents) {
-    const sessionsFile = join(agentsDir, agent, 'sessions', 'sessions.json');
-    
-    if (existsSync(sessionsFile)) {
-      try {
-        const data = JSON.parse(readFileSync(sessionsFile, 'utf-8'));
-        
-        // Parse session data - structure may vary
-        if (Array.isArray(data)) {
-          for (const session of data) {
-            sessions.push({
-              key: truncateKey(session.key || session.id || 'unknown'),
-              kind: session.kind || 'direct',
-              model: extractModel(session.model || session.defaultModel || 'unknown'),
-              tokensUsed: session.tokensUsed || session.tokens?.used || 0,
-              tokensMax: session.tokensMax || session.tokens?.max || 200000,
-              lastActivity: session.lastActivity || session.updatedAt || new Date().toISOString(),
-            });
-          }
-        } else if (typeof data === 'object') {
-          // Handle object-keyed sessions
-          for (const [key, session] of Object.entries(data)) {
-            const s = session as any;
-            sessions.push({
-              key: truncateKey(key),
-              kind: s.kind || 'direct',
-              model: extractModel(s.model || s.defaultModel || 'unknown'),
-              tokensUsed: s.tokensUsed || s.tokens?.used || 0,
-              tokensMax: s.tokensMax || s.tokens?.max || 200000,
-              lastActivity: s.lastActivity || s.updatedAt || new Date().toISOString(),
-            });
-          }
-        }
-      } catch (err) {
-        console.error(`Failed to parse sessions for agent ${agent}:`, err);
-      }
+  try {
+    const sessionsFile = join(sessionsDir, 'sessions.json');
+    if (!existsSync(sessionsFile)) {
+      return { active: 0, total: 0 };
     }
+    
+    const data = JSON.parse(readFileSync(sessionsFile, 'utf-8'));
+    const sessions = Array.isArray(data) ? data : Object.values(data);
+    
+    // Count active sessions (activity in last 10 minutes)
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+    const active = sessions.filter((s: any) => {
+      const lastActivity = new Date(s.lastActivity || s.updatedAt || 0).getTime();
+      return lastActivity > tenMinutesAgo;
+    }).length;
+    
+    return { active, total: sessions.length };
+  } catch (err) {
+    console.error('Failed to count sessions:', err);
+    return { active: 0, total: 0 };
+  }
+}
+
+function getGatewayUptime(openclawDir: string): number {
+  // Read gateway start time from config or state
+  const stateFile = join(openclawDir, 'gateway', 'state.json');
+  
+  if (!existsSync(stateFile)) {
+    return 0;
   }
   
-  return sessions;
-}
-
-function truncateKey(key: string): string {
-  if (key.length <= 20) return key;
-  return key.slice(0, 10) + '...' + key.slice(-6);
-}
-
-function extractModel(model: string): string {
-  // Extract just the model name from provider/model format
-  const parts = model.split('/');
-  return parts[parts.length - 1];
-}
-
-function formatSchedule(schedule: any): string {
-  if (!schedule) return 'unknown';
-  
-  if (schedule.kind === 'cron') {
-    return `cron: ${schedule.expr}`;
-  } else if (schedule.kind === 'every') {
-    const mins = Math.round(schedule.everyMs / 60000);
-    if (mins < 60) return `every ${mins}m`;
-    const hours = Math.round(mins / 60);
-    return `every ${hours}h`;
-  } else if (schedule.kind === 'at') {
-    return `at ${schedule.at}`;
+  try {
+    const state = JSON.parse(readFileSync(stateFile, 'utf-8'));
+    const startedAt = state.startedAt || state.started_at;
+    if (startedAt) {
+      return Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+    }
+  } catch (err) {
+    // Ignore
   }
   
-  return JSON.stringify(schedule);
+  return 0;
 }
 
-async function collectCrons(): Promise<CronJob[]> {
-  // In a real implementation, this would call the OpenClaw cron API
-  // For now, we'll read from the config or use the tool
+function getCronStats(openclawDir: string): { enabled: number; total: number } {
+  // Try to read cron config
+  const cronConfigFile = join(openclawDir, 'config', 'cron.json');
   
-  // This is a placeholder - the actual implementation would use
-  // the OpenClaw internal API or read from cron state files
+  if (!existsSync(cronConfigFile)) {
+    return { enabled: 0, total: 0 };
+  }
   
-  console.log('Cron collection requires OpenClaw tool access');
-  return [];
+  try {
+    const config = JSON.parse(readFileSync(cronConfigFile, 'utf-8'));
+    const jobs = config.jobs || [];
+    return {
+      enabled: jobs.filter((j: any) => j.enabled !== false).length,
+      total: jobs.length
+    };
+  } catch (err) {
+    return { enabled: 0, total: 0 };
+  }
+}
+
+function estimateCosts(sessions: { total: number }): { today: number; month: number } {
+  // Rough estimate: $0.01 per session per hour
+  const hourlyRate = 0.01;
+  const hoursThisMonth = new Date().getDate() * 24; // rough
+  
+  return {
+    today: sessions.total * hourlyRate,
+    month: sessions.total * hourlyRate * hoursThisMonth
+  };
 }
 
 async function postReport(payload: ReportPayload): Promise<void> {
@@ -180,17 +149,27 @@ async function main() {
   const openclawDir = getOpenClawDir();
   console.log(`OpenClaw dir: ${openclawDir}`);
   
-  const sessions = collectSessions(openclawDir);
-  console.log(`Collected ${sessions.length} sessions`);
+  const sessions = countSessions(openclawDir);
+  console.log(`Sessions: ${sessions.active} active, ${sessions.total} total`);
   
-  const crons = await collectCrons();
-  console.log(`Collected ${crons.length} cron jobs`);
+  const uptime = getGatewayUptime(openclawDir);
+  console.log(`Gateway uptime: ${uptime}s`);
+  
+  const crons = getCronStats(openclawDir);
+  console.log(`Crons: ${crons.enabled} enabled, ${crons.total} total`);
+  
+  const costs = estimateCosts(sessions);
+  console.log(`Costs: $${costs.today.toFixed(4)} today, $${costs.month.toFixed(4)} month`);
   
   const payload: ReportPayload = {
+    timestamp: new Date().toISOString(),
+    gateway: {
+      online: true,
+      uptime,
+    },
     sessions,
     crons,
-    timestamp: new Date().toISOString(),
-    agentId: 'main', // TODO: make configurable
+    costs,
   };
   
   if (API_KEY) {
