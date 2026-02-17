@@ -176,7 +176,7 @@ function Dashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "settings" | "install">("dashboard");
   const [alertSettings, setAlertSettings] = useState({
     alert_cost_threshold: "",
     alert_downtime_minutes: "5",
@@ -402,6 +402,16 @@ function Dashboard() {
               Dashboard
             </button>
             <button
+              onClick={() => setActiveTab("install")}
+              className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all duration-150 whitespace-nowrap ${
+                activeTab === "install" 
+                  ? "bg-zinc-800 text-zinc-100" 
+                  : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50"
+              }`}
+            >
+              Install
+            </button>
+            <button
               onClick={() => setActiveTab("settings")}
               className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all duration-150 whitespace-nowrap ${
                 activeTab === "settings" 
@@ -424,6 +434,70 @@ function Dashboard() {
       <main className="p-6">
         {loading ? (
           <div className="text-center text-zinc-400 py-16 animate-pulse">Loading…</div>
+        ) : activeTab === "install" ? (
+          // Install tab
+          <div className="max-w-2xl">
+            <h2 className="text-xl font-semibold mb-6">Install Reporter</h2>
+            
+            <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-6 mb-4">
+              <h3 className="font-medium mb-3">Quick Install</h3>
+              <p className="text-zinc-400 text-sm mb-4">
+                Run this command on your OpenClaw host:
+              </p>
+              <div className="relative">
+                <pre className="bg-zinc-950 p-4 rounded-lg overflow-x-auto text-sm font-mono text-emerald-400">
+{`curl -fsSL https://raw.githubusercontent.com/lowvisiondave/pawprint/main/packages/reporter/install.sh | bash -s ${selectedWorkspace?.api_key || 'YOUR_API_KEY'}`}
+                </pre>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`curl -fsSL https://raw.githubusercontent.com/lowvisiondave/pawprint/main/packages/reporter/install.sh | bash -s ${selectedWorkspace?.api_key}`);
+                  }}
+                  className="absolute top-2 right-2 bg-zinc-800 px-2 py-1 rounded text-xs hover:bg-zinc-700"
+                >
+                  Copy
+                </button>
+              </div>
+              <p className="text-zinc-500 text-xs mt-3">
+                Replace YOUR_API_KEY with your workspace API key (or use the one pre-filled above).
+              </p>
+            </div>
+
+            <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-6 mb-4">
+              <h3 className="font-medium mb-3">What it does</h3>
+              <ul className="text-zinc-400 text-sm space-y-2">
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-400">✓</span>
+                  Downloads the reporter script
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-400">✓</span>
+                  Tests the connection to PawPrint
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-400">✓</span>
+                  Shows how to set up a cron job
+                </li>
+              </ul>
+            </div>
+
+            <div className="backdrop-blur-sm bg-zinc-900/80 border border-zinc-800 rounded-xl p-6">
+              <h3 className="font-medium mb-3">Manual Setup</h3>
+              <p className="text-zinc-400 text-sm mb-3">
+                If you prefer to install manually:
+              </p>
+              <pre className="bg-zinc-950 p-4 rounded-lg overflow-x-auto text-sm font-mono text-zinc-300">
+{`# Install dependencies
+npm install -g tsx
+
+# Set environment
+export PAWPRINT_API_KEY="${selectedWorkspace?.api_key || 'YOUR_API_KEY'}"
+export PAWPRINT_API_URL="https://web-xi-khaki.vercel.app/api"
+
+# Run reporter
+npx tsx reporter.ts`}
+              </pre>
+            </div>
+          </div>
         ) : activeTab === "settings" ? (
           // Settings tab
           <div className="max-w-2xl">
