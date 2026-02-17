@@ -321,7 +321,6 @@ function Dashboard({
 
 export default function Home() {
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [loggingIn, setLoggingIn] = useState(false);
 
   useEffect(() => {
@@ -330,7 +329,6 @@ export default function Home() {
     if (stored) {
       setApiKey(stored);
     }
-    setLoading(false);
   }, []);
 
   function handleLogin(key: string) {
@@ -343,14 +341,6 @@ export default function Home() {
   function handleLogout() {
     localStorage.removeItem("pawprint_api_key");
     setApiKey(null);
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-        <div className="text-zinc-400">Loading...</div>
-      </div>
-    );
   }
 
   if (!apiKey) {
