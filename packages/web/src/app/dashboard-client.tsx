@@ -313,8 +313,6 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                       : "from-zinc-500/20 to-zinc-500/5",
                     error: (latestReport?.errors?.last24h || 0) > 0,
                   },
-                    color: "from-amber-500/20 to-amber-500/5",
-                  },
                 ].map((stat, i) => (
                   <div
                     key={i}
