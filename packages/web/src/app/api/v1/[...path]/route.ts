@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 import { getServerSession } from "next-auth"
 import { authOptions } from '@/auth';
+import { randomUUID } from 'crypto';
 
 // Database client
 const db = neon(process.env.DATABASE_URL || '');
@@ -171,8 +172,8 @@ export async function GET(
     const name = url.searchParams.get('name') || 'My Agent';
     
     // Generate API key and slug
-    const apiKey = 'pk_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Math.random().toString(36).slice(2, 6);
+    const apiKey = 'pk_' + randomUUID();
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + randomUUID().slice(0, 8);
     
     const result = await db`
       INSERT INTO workspaces (user_id, name, api_key, slug)
@@ -217,7 +218,7 @@ export async function GET(
     const workspace = verify[0];
     
     // Generate invite token
-    const token = 'inv_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const token = 'inv_' + randomUUID();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
     
     await db`
@@ -407,7 +408,7 @@ export async function GET(
       
       // Regenerate API key
       if (action === 'regenerate_api_key') {
-        const newApiKey = 'pk_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+        const newApiKey = 'pk_' + randomUUID();
         
         await db`
           UPDATE workspaces SET api_key = ${newApiKey} WHERE id = ${parseInt(workspaceId)}
@@ -579,6 +580,60 @@ export async function POST(
   const path = (await params).path;
   const authHeader = request.headers.get('Authorization');
   
+  // Handle session-based auth for certain endpoints
+  let userId: number | null = null;
+  const session = await getServerSession(authOptions);
+  if (session?.user?.email) {
+    const users = await db`
+      SELECT id FROM users WHERE email = ${session.user.email}
+    `;
+    if (users.length > 0) {
+      userId = users[0].id;
+    }
+  }
+  
+  // Invite creation via POST (preferred method)
+  if (path[0] === 'workspace' && path[1] === 'invite') {
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const body = await request.json();
+    const { workspaceId } = body;
+    
+    if (!workspaceId) {
+      return NextResponse.json({ error: 'Workspace ID required' }, { status: 400 });
+    }
+    
+    // Verify ownership
+    const verify = await db`
+      SELECT id, name FROM workspaces WHERE id = ${workspaceId} AND user_id = ${userId}
+    `;
+    if (verify.length === 0) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    
+    const workspace = verify[0];
+    const token = 'inv_' + randomUUID();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    
+    await db`
+      INSERT INTO workspace_invites (workspace_id, token, expires_at)
+      VALUES (${workspaceId}, ${token}, ${expiresAt})
+    `;
+    
+    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://pawprint.app'}/invite/${token}`;
+    
+    return NextResponse.json({ 
+      inviteUrl,
+      token,
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+      expiresAt
+    });
+  }
+  
+  // Require API key for other endpoints
   if (!authHeader?.startsWith('Bearer ')) {
     return NextResponse.json({ error: 'Missing API key' }, { status: 401 });
   }
