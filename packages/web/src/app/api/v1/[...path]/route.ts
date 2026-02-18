@@ -584,6 +584,9 @@ export async function GET(
           crons_total: row.crons_total,
           cost_today: Number(row.cost_today),
           cost_month: Number(row.cost_month),
+          system_cpu_usage_percent: row.system_cpu_usage_percent ? Number(row.system_cpu_usage_percent) : null,
+          system_memory_used_percent: row.system_memory_used_percent ? Number(row.system_memory_used_percent) : null,
+          system_disk_used_percent: row.system_disk_used_percent ? Number(row.system_disk_used_percent) : null,
         }))
       });
     }

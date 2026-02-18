@@ -66,6 +66,9 @@ interface HistoryPoint {
   gateway_online: boolean;
   sessions_active: number;
   cost_today: number;
+  system_cpu_usage_percent: number | null;
+  system_memory_used_percent: number | null;
+  system_disk_used_percent: number | null;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://web-xi-khaki.vercel.app";
@@ -312,13 +315,19 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
           {activeTab === "dashboard" && (
             <div className="space-y-6">
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
                 {[
                   {
                     label: "Today's Cost",
                     value: `$${latestReport?.costs?.today?.toFixed(2) || "0.00"}`,
                     icon: "💰",
                     color: "from-emerald-500/20 to-emerald-500/5",
+                  },
+                  {
+                    label: "Uptime",
+                    value: data?.gatewayOnline ? "✅ Online" : "❌ Offline",
+                    icon: "🟢",
+                    color: data?.gatewayOnline ? "from-emerald-500/20 to-emerald-500/5" : "from-red-500/20 to-red-500/5",
                   },
                   {
                     label: "Active Sessions",
@@ -495,6 +504,29 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                 </div>
               )}
 
+              {/* Error Alerts */}
+              {latestReport?.errors && latestReport.errors.last24h > 0 && (
+                <div className="backdrop-blur-xl bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/30 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-xl">⚠️</span>
+                    <span className="font-semibold">Errors</span>
+                    <span className="ml-auto bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-sm font-semibold">
+                      {latestReport.errors.last24h} in 24h
+                    </span>
+                  </div>
+                  {latestReport.errors.lastError && (
+                    <div className="bg-zinc-900/50 rounded-xl p-4 border-l-2 border-red-500">
+                      <div className="text-xs text-zinc-500 mb-1">
+                        Last error: {new Date(latestReport.errors.lastError.timestamp).toLocaleString()}
+                      </div>
+                      <div className="font-mono text-sm text-red-300 truncate">
+                        {latestReport.errors.lastError.message}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Charts */}
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-lg">📈 History</h3>
@@ -583,6 +615,113 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                   </div>
                 </div>
               </div>
+
+              {/* System Metrics Charts */}
+              {history.some(h => h.system_cpu_usage_percent !== null) && (
+                <div className="grid lg:grid-cols-3 gap-6">
+                  {/* CPU Chart */}
+                  <div className="backdrop-blur-xl bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-2xl p-5">
+                    <h3 className="font-semibold mb-4">🖥️ CPU ({timeRange})</h3>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={history}>
+                          <XAxis 
+                            dataKey="timestamp" 
+                            tickFormatter={formatTime}
+                            stroke="#71717a" 
+                            fontSize={10}
+                            tickLine={false}
+                          />
+                          <YAxis stroke="#71717a" fontSize={10} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                          <Tooltip
+                            contentStyle={{ 
+                              backgroundColor: "rgba(24,24,27,0.95)", 
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              borderRadius: "8px",
+                            }}
+                            formatter={(v: number) => [`${v}%`, 'CPU']}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="system_cpu_usage_percent" 
+                            stroke="#f97316" 
+                            strokeWidth={2}
+                            dot={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Memory Chart */}
+                  <div className="backdrop-blur-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-2xl p-5">
+                    <h3 className="font-semibold mb-4">🧠 Memory ({timeRange})</h3>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={history}>
+                          <XAxis 
+                            dataKey="timestamp" 
+                            tickFormatter={formatTime}
+                            stroke="#71717a" 
+                            fontSize={10}
+                            tickLine={false}
+                          />
+                          <YAxis stroke="#71717a" fontSize={10} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                          <Tooltip
+                            contentStyle={{ 
+                              backgroundColor: "rgba(24,24,27,0.95)", 
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              borderRadius: "8px",
+                            }}
+                            formatter={(v: number) => [`${v}%`, 'Memory']}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="system_memory_used_percent" 
+                            stroke="#06b6d4" 
+                            strokeWidth={2}
+                            dot={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Disk Chart */}
+                  <div className="backdrop-blur-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-2xl p-5">
+                    <h3 className="font-semibold mb-4">💾 Disk ({timeRange})</h3>
+                    <div className="h-32">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={history}>
+                          <XAxis 
+                            dataKey="timestamp" 
+                            tickFormatter={formatTime}
+                            stroke="#71717a" 
+                            fontSize={10}
+                            tickLine={false}
+                          />
+                          <YAxis stroke="#71717a" fontSize={10} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                          <Tooltip
+                            contentStyle={{ 
+                              backgroundColor: "rgba(24,24,27,0.95)", 
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              borderRadius: "8px",
+                            }}
+                            formatter={(v: number) => [`${v}%`, 'Disk']}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="system_disk_used_percent" 
+                            stroke="#a855f7" 
+                            strokeWidth={2}
+                            dot={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Token & Model Breakdown */}
               {(latestReport?.tokens || latestReport?.modelBreakdown) && (
