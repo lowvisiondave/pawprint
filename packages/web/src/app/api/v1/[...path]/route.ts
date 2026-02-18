@@ -51,6 +51,10 @@ async function ensureTables() {
   `;
   
   await db`
+    ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS slug TEXT UNIQUE;
+  `;
+  
+  await db`
     CREATE INDEX IF NOT EXISTS idx_readings_workspace ON readings(workspace_id, timestamp DESC);
   `;
 }
@@ -150,13 +154,14 @@ export async function GET(
     const url = new URL(request.url);
     const name = url.searchParams.get('name') || 'My Agent';
     
-    // Generate API key
+    // Generate API key and slug
     const apiKey = 'pk_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Math.random().toString(36).slice(2, 6);
     
     const result = await db`
-      INSERT INTO workspaces (user_id, name, api_key)
-      VALUES (${userId}, ${name}, ${apiKey})
-      RETURNING id, name, api_key, created_at
+      INSERT INTO workspaces (user_id, name, api_key, slug)
+      VALUES (${userId}, ${name}, ${apiKey}, ${slug})
+      RETURNING id, name, api_key, slug, created_at
     `;
     
     return NextResponse.json({ workspace: result[0] });
