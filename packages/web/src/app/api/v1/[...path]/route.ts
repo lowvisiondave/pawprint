@@ -673,6 +673,15 @@ export async function POST(
     try {
       const payload = await request.json() as ReportPayload;
       
+      // Extract values for template literal
+      const p = payload;
+      const sys = p.system;
+      const modelBreakdownStr = p.modelBreakdown ? JSON.stringify(p.modelBreakdown) : null;
+      const loadAvgStr = sys?.loadAvg ? JSON.stringify(sys.loadAvg) : null;
+      const endpointsStr = p.endpoints ? JSON.stringify(p.endpoints) : null;
+      const processesStr = p.processes ? JSON.stringify(p.processes) : null;
+      const customStr = p.custom ? JSON.stringify(p.custom) : null;
+      
       await db`
         INSERT INTO readings (
           workspace_id,
@@ -689,38 +698,38 @@ export async function POST(
           errors_count, last_error_message, last_error_timestamp
         ) VALUES (
           ${workspace.id},
-          ${payload.timestamp || new Date().toISOString()},
-          ${payload.gateway?.online ?? null},
-          ${payload.gateway?.uptime ?? null},
-          ${payload.sessions?.active ?? null},
-          ${payload.sessions?.total ?? null},
-          ${payload.crons?.enabled ?? null},
-          ${payload.crons?.total ?? null},
-          ${payload.costs?.today ?? null},
-          ${payload.costs?.month ?? null},
-          ${payload.tokens?.input ?? null},
-          ${payload.tokens?.output ?? null},
-          ${payload.modelBreakdown ? JSON.stringify(payload.modelBreakdown) : null},
-          ${payload.system?.hostname ?? null},
-          ${payload.system?.platform ?? null},
-          ${payload.system?.arch ?? null},
-          ${payload.system?.cpuCount ?? null},
-          ${payload.system?.cpuUsagePercent ?? null},
-          ${payload.system?.memoryTotalMb ?? null},
-          ${payload.system?.memoryUsedPercent ?? null},
-          ${payload.system?.memoryFreeMb ?? null},
-          ${payload.system?.diskTotalGb ?? null},
-          ${payload.system?.diskUsedPercent ?? null},
-          ${payload.system?.diskFreeGb ?? null},
-          ${payload.system?.localIp ?? null},
-          ${payload.system?.uptime ?? null},
-          ${payload.system?.loadAvg ? JSON.stringify(payload.system.loadAvg) : null},
-          ${payload.endpoints ? JSON.stringify(payload.endpoints) : null},
-          ${payload.processes ? JSON.stringify(payload.processes) : null},
-          ${payload.custom ? JSON.stringify(payload.custom) : null},
-          ${payload.errors?.last24h ?? 0},
-          ${payload.errors?.lastError?.message ?? null},
-          ${payload.errors?.lastError?.timestamp ?? null}
+          ${p.timestamp || new Date().toISOString()},
+          ${p.gateway?.online ?? null},
+          ${p.gateway?.uptime ?? null},
+          ${p.sessions?.active ?? null},
+          ${p.sessions?.total ?? null},
+          ${p.crons?.enabled ?? null},
+          ${p.crons?.total ?? null},
+          ${p.costs?.today ?? null},
+          ${p.costs?.month ?? null},
+          ${p.tokens?.input ?? null},
+          ${p.tokens?.output ?? null},
+          ${modelBreakdownStr},
+          ${sys?.hostname ?? null},
+          ${sys?.platform ?? null},
+          ${sys?.arch ?? null},
+          ${sys?.cpuCount ?? null},
+          ${sys?.cpuUsagePercent ?? null},
+          ${sys?.memoryTotalMb ?? null},
+          ${sys?.memoryUsedPercent ?? null},
+          ${sys?.memoryFreeMb ?? null},
+          ${sys?.diskTotalGb ?? null},
+          ${sys?.diskUsedPercent ?? null},
+          ${sys?.diskFreeGb ?? null},
+          ${sys?.localIp ?? null},
+          ${sys?.uptime ?? null},
+          ${loadAvgStr},
+          ${endpointsStr},
+          ${processesStr},
+          ${customStr},
+          ${p.errors?.last24h ?? 0},
+          ${p.errors?.lastError?.message ?? null},
+          ${p.errors?.lastError?.timestamp ?? null}
         )
       `;
       

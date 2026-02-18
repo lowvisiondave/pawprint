@@ -31,3 +31,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# PawPrint specific
+packages/web/.env.vercel
+packages/web/query-workspace*
