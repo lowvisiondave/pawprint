@@ -228,6 +228,7 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
   const [agents, setAgents] = useState<Array<{hostname: string; lastSeen: string; isOnline: boolean; cost24h: number; sessions: number}>>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("24h");
+  const [workspaceSettings, setWorkspaceSettings] = useState<{name?: string; api_key?: string} | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -243,6 +244,12 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
       fetch(`${API_URL}/api/v1/agents?workspace_id=${workspaceId}`)
         .then(r => r.json())
         .then(d => setAgents(d.agents || []));
+    }
+    
+    if (activeTab === "install" || activeTab === "settings") {
+      fetch(`${API_URL}/api/v1/workspace/settings?id=${workspaceId}`)
+        .then(r => r.json())
+        .then(d => setWorkspaceSettings(d.workspace || null));
     }
   }, [activeTab, workspaceId]);
 
@@ -882,9 +889,80 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
           )}
 
           {activeTab === "settings" && (
-            <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6 max-w-2xl">
-              <h2 className="text-xl font-bold mb-6">⚙️ Settings</h2>
-              <p className="text-zinc-400">Workspace and account settings.</p>
+            <div className="space-y-6 max-w-2xl">
+              {/* Workspace Info */}
+              <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
+                <h2 className="text-xl font-bold mb-4">🏢 Workspace</h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-zinc-400 mb-2">Workspace Name</label>
+                    <div className="flex gap-2">
+                      <input 
+                        name="workspace_name"
+                        defaultValue={workspaceSettings?.name}
+                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
+                      />
+                      <button 
+                        onClick={(e) => {
+                          const name = (e.target as HTMLElement).previousElementSibling?.querySelector('input')?.value;
+                          fetch(`${API_URL}/api/v1/workspace/settings?id=${workspaceId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name }),
+                          }).then(() => setWorkspaceSettings(s => s ? { ...s, name } : s));
+                        }}
+                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm text-zinc-400 mb-2">API Key</label>
+                    <div className="flex gap-2">
+                      <code className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 font-mono text-emerald-400">
+                        {workspaceSettings?.api_key || 'Loading...'}
+                      </code>
+                      <button 
+                        onClick={() => {
+                          if (confirm('Regenerate API key? Old key will stop working.')) {
+                            fetch(`${API_URL}/api/v1/workspace/settings?id=${workspaceId}`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'regenerate_api_key' }),
+                            }).then(r => r.json()).then(d => {
+                              if (d.apiKey) {
+                                setWorkspaceSettings(s => s ? { ...s, api_key: d.apiKey } : s);
+                              }
+                            });
+                          }
+                        }}
+                        className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors text-sm"
+                      >
+                        🔄 Regenerate
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Danger Zone */}
+              <div className="backdrop-blur-xl bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
+                <h2 className="text-xl font-bold mb-4 text-red-400">⚠️ Danger Zone</h2>
+                <p className="text-sm text-zinc-400 mb-4">Irreversible actions for your workspace.</p>
+                <button 
+                  className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg text-red-400 transition-colors text-sm"
+                  onClick={() => {
+                    if (confirm('Delete this workspace? All data will be lost forever.')) {
+                      alert('Workspace deletion not implemented yet.');
+                    }
+                  }}
+                >
+                  Delete Workspace
+                </button>
+              </div>
             </div>
           )}
 
@@ -899,10 +977,10 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                     <div className="text-sm text-zinc-400 mb-2">Step 1: Copy Your API Key</div>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 font-mono text-emerald-400 text-sm">
-                        pk_test_12345678
+                        {workspaceSettings?.api_key || 'Loading...'}
                       </code>
                       <button
-                        onClick={() => navigator.clipboard.writeText("pk_test_12345678")}
+                        onClick={() => workspaceSettings?.api_key && navigator.clipboard.writeText(workspaceSettings.api_key)}
                         className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm transition-colors"
                       >
                         📋 Copy
@@ -912,10 +990,10 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
 
                   <div className="bg-zinc-900/50 rounded-xl p-4">
                     <div className="text-sm text-zinc-400 mb-2">Step 2: Run the Installer</div>
-                    <p className="text-xs text-zinc-500 mb-3">Open a terminal on your OpenClaw host and run:</p>
+                    <p className="text-xs text-zinc-500 mb-3">Open a terminal on your server and run:</p>
                     <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 overflow-x-auto">
                       <code className="text-xs text-emerald-400 whitespace-nowrap">
-                        curl -fsSL https://raw.githubusercontent.com/lowvisiondave/pawprint/main/packages/web/public/install.sh | bash -s pk_test_12345678
+                        curl -fsSL https://raw.githubusercontent.com/lowvisiondave/pawprint/main/packages/web/public/install.sh | bash -s {workspaceSettings?.api_key || 'YOUR_API_KEY'}
                       </code>
                     </div>
                   </div>
