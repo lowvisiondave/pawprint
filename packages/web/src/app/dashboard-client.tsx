@@ -55,56 +55,135 @@ function LandingPage() {
       </div>
       
       <div className="relative z-10 min-h-screen flex flex-col">
-        <header className="flex items-center justify-between px-6 py-4">
+        {/* Header */}
+        <header className="flex items-center justify-between px-6 py-6 max-w-6xl mx-auto w-full">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🐾</span>
-            <span className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+            <span className="text-3xl">🐾</span>
+            <span className="text-2xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
               PawPrint
             </span>
           </div>
-          <button
-            onClick={() => signIn("github")}
-            className="px-4 py-2 bg-zinc-100 text-zinc-900 rounded-lg font-medium hover:bg-zinc-200 transition-colors"
-          >
-            Sign In
-          </button>
+          <div className="flex items-center gap-4">
+            <a href="#features" className="text-zinc-400 hover:text-white transition-colors hidden sm:block">Features</a>
+            <a href="#how-it-works" className="text-zinc-400 hover:text-white transition-colors hidden sm:block">How it Works</a>
+            <button
+              onClick={() => signIn("github")}
+              className="px-5 py-2.5 bg-zinc-100 text-zinc-900 rounded-lg font-semibold hover:bg-zinc-200 transition-all hover:scale-105"
+            >
+              Sign In
+            </button>
+          </div>
         </header>
 
-        <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
-          <div className="text-center mb-12 max-w-2xl">
-            <div className="text-6xl mb-6 animate-[bounce_3s_infinite]">🐾</div>
-            <h1 className="text-5xl sm:text-6xl font-bold mb-6 bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-              Agent Ops Dashboard
-            </h1>
-            <p className="text-xl text-zinc-400 mb-8">
-              Monitor your AI agents in real-time. Track sessions, cron jobs, costs, and system health.
+        <main className="flex-1">
+          {/* Hero Section */}
+          <section className="px-6 py-20 sm:py-32 text-center max-w-4xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 mb-8">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-sm text-zinc-300">Now with real-time system monitoring</span>
+            </div>
+            
+            <div className="text-5xl sm:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-indigo-200 to-purple-200 bg-clip-text text-transparent leading-tight">
+              Monitor your<br />AI agents in real-time
+            </div>
+            <p className="text-xl sm:text-2xl text-zinc-400 mb-10 max-w-2xl mx-auto">
+              Track sessions, token usage, costs, and system health. Get Slack alerts when things go wrong.
             </p>
             <button
               onClick={() => signIn("github")}
-              className="px-8 py-4 bg-gradient-to-r from-indigo-500 to-violet-500 text-white rounded-xl font-semibold hover:from-indigo-600 hover:to-violet-600 transition-all hover:scale-105 hover:shadow-lg hover:shadow-indigo-500/25"
+              className="px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500 text-white rounded-2xl font-bold text-lg hover:from-indigo-600 hover:via-purple-600 hover:to-violet-600 transition-all hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/25"
             >
-              Get Started — It's Free
+              🚀 Sign in with GitHub — Free
             </button>
-          </div>
+            <p className="mt-4 text-sm text-zinc-500">No credit card required</p>
+          </section>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl w-full">
-            {[
-              { icon: "📊", title: "Real-time Metrics", desc: "Sessions, tokens, costs" },
-              { icon: "🔔", title: "Smart Alerts", desc: "Cost thresholds & downtime" },
-              { icon: "🖥️", title: "System Health", desc: "Memory, disk, network" },
-            ].map((item, i) => (
-              <div
-                key={i}
-                className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-white/20 transition-all hover:-translate-y-1"
-                style={{ animationDelay: `${i * 0.1}s` }}
+          {/* Features Section */}
+          <section id="features" className="px-6 py-20 max-w-6xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">Everything you need</h2>
+              <p className="text-zinc-400 text-lg">Monitor your AI infrastructure at a glance</p>
+            </div>
+            
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                { icon: "📊", title: "Real-Time Metrics", desc: "Sessions, tokens, and costs at a glance. Know exactly what's happening with your agents.", color: "from-blue-500/20 to-blue-500/5" },
+                { icon: "🖥️", title: "System Health", desc: "Memory, disk, and network monitoring. Spot issues before they become problems.", color: "from-emerald-500/20 to-emerald-500/5" },
+                { icon: "🔔", title: "Smart Alerts", desc: "Slack notifications when costs spike or your agents go offline.", color: "from-amber-500/20 to-amber-500/5" },
+                { icon: "📈", title: "Historical Trends", desc: "7-day and 30-day charts. Understand usage patterns over time.", color: "from-violet-500/20 to-violet-500/5" },
+                { icon: "🔐", title: "Multi-Workspace", desc: "Monitor multiple deployments from one dashboard. Organize by project or client.", color: "from-cyan-500/20 to-cyan-500/5" },
+                { icon: "⚡", title: "5-Minute Setup", desc: "One command to install. Reporter auto-starts with cron.", color: "from-pink-500/20 to-pink-500/5" },
+              ].map((feature, i) => (
+                <div
+                  key={i}
+                  className={`backdrop-blur-xl bg-gradient-to-br ${feature.color} border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-white/20 transition-all hover:-translate-y-1 group`}
+                >
+                  <div className="text-4xl mb-4">{feature.icon}</div>
+                  <h3 className="text-xl font-bold mb-2">{feature.title}</h3>
+                  <p className="text-zinc-400">{feature.desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* How It Works Section */}
+          <section id="how-it-works" className="px-6 py-20 max-w-4xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">How it works</h2>
+              <p className="text-zinc-400 text-lg">Up and running in 2 minutes</p>
+            </div>
+            
+            <div className="grid gap-6">
+              {[
+                { step: "1", title: "Sign in with GitHub", desc: "Create your account instantly. No passwords, no setup." },
+                { step: "2", title: "Create a workspace", desc: "Organize your agents by project, client, or environment." },
+                { step: "3", title: "Install the reporter", desc: "One command to start sending metrics. We'll handle the rest." },
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-6 backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6"
+                >
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-xl font-bold flex-shrink-0">
+                    {item.step}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold mb-1">{item.title}</h3>
+                    <p className="text-zinc-400">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* CTA Section */}
+          <section className="px-6 py-20 text-center">
+            <div className="backdrop-blur-xl bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-violet-500/20 border border-white/10 rounded-3xl p-12 max-w-2xl mx-auto">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">Ready to monitor?</h2>
+              <p className="text-zinc-400 text-lg mb-8">Join developers who know exactly what their AI agents are doing.</p>
+              <button
+                onClick={() => signIn("github")}
+                className="px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500 text-white rounded-2xl font-bold text-lg hover:from-indigo-600 hover:via-purple-600 hover:to-violet-600 transition-all hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/25"
               >
-                <div className="text-3xl mb-3">{item.icon}</div>
-                <h3 className="text-lg font-semibold mb-1">{item.title}</h3>
-                <p className="text-zinc-400 text-sm">{item.desc}</p>
-              </div>
-            ))}
-          </div>
+                🚀 Get Started — Free
+              </button>
+            </div>
+          </section>
         </main>
+
+        {/* Footer */}
+        <footer className="border-t border-white/5 py-8 px-6">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 text-zinc-500">
+              <a href="https://github.com/lowvisiondave/pawprint" className="hover:text-white transition-colors">GitHub</a>
+              <span>·</span>
+              <span>Built by Dave & friends</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">🐾</span>
+              <span className="font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">PawPrint</span>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );
