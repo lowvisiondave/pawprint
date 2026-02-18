@@ -74,6 +74,10 @@ interface ReportPayload {
     diskFreeGb?: number;
     localIp?: string;
   };
+  errors?: {
+    last24h: number;
+    lastError?: { message: string; timestamp: string };
+  };
 }
 
 // Get workspace from API key
