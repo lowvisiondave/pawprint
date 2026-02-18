@@ -156,9 +156,9 @@ export async function GET(
     },
     status: latest[0]?.gateway_online ? 'online' : 'offline',
     uptime: {
-     24h: calcUptime(uptime24h),
-     7d: calcUptime(uptime7d),
-     30d: calcUptime(uptime30d),
+      "24h": calcUptime(uptime24h),
+      "7d": calcUptime(uptime7d),
+      "30d": calcUptime(uptime30d),
     },
     lastCheck: latest[0]?.timestamp,
     cost24h: cost.toFixed(2),
