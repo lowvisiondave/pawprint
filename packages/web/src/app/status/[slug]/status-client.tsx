@@ -7,9 +7,9 @@ interface StatusData {
   };
   status?: string;
   uptime?: {
-    24h: number | null;
-    7d: number | null;
-    30d: number | null;
+    "24h": number | null;
+    "7d": number | null;
+    "30d": number | null;
   };
   lastCheck?: string;
   cost24h?: string;
@@ -39,6 +39,7 @@ function StatusClient({ data, slug }: { data: StatusData | null; slug: string })
 
   const isOnline = data.status === 'online';
   const hasIncidents = data.incidents && data.incidents.length > 0;
+  const uptime = data.uptime;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
@@ -78,20 +79,20 @@ function StatusClient({ data, slug }: { data: StatusData | null; slug: string })
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
               <div className="text-zinc-500 text-sm mb-1">24h Uptime</div>
-              <div className={`text-3xl font-bold ${data.uptime?.24h === 100 ? 'text-emerald-400' : data.uptime?.24h && data.uptime?.24h > 95 ? 'text-yellow-400' : 'text-red-400'}`}>
-                {data.uptime?.24h !== null ? `${data.uptime?.24h}%` : '—'}
+              <div className={`text-3xl font-bold ${uptime?.["24h"] === 100 ? 'text-emerald-400' : uptime?.["24h"] && uptime?.["24h"] > 95 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {uptime?.["24h"] !== null ? `${uptime?.["24h"]}%` : '—'}
               </div>
             </div>
             <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
               <div className="text-zinc-500 text-sm mb-1">7d Uptime</div>
-              <div className={`text-3xl font-bold ${data.uptime?.7d === 100 ? 'text-emerald-400' : data.uptime?.7d && data.uptime?.7d > 95 ? 'text-yellow-400' : 'text-red-400'}`}>
-                {data.uptime?.7d !== null ? `${data.uptime?.7d}%` : '—'}
+              <div className={`text-3xl font-bold ${uptime?.["7d"] === 100 ? 'text-emerald-400' : uptime?.["7d"] && uptime?.["7d"] > 95 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {uptime?.["7d"] !== null ? `${uptime?.["7d"]}%` : '—'}
               </div>
             </div>
             <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
               <div className="text-zinc-500 text-sm mb-1">30d Uptime</div>
-              <div className={`text-3xl font-bold ${data.uptime?.30d === 100 ? 'text-emerald-400' : data.uptime?.30d && data.uptime?.30d > 95 ? 'text-yellow-400' : 'text-red-400'}`}>
-                {data.uptime?.30d !== null ? `${data.uptime?.30d}%` : '—'}
+              <div className={`text-3xl font-bold ${uptime?.["30d"] === 100 ? 'text-emerald-400' : uptime?.["30d"] && uptime?.["30d"] > 95 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {uptime?.["30d"] !== null ? `${uptime?.["30d"]}%` : '—'}
               </div>
             </div>
           </div>
