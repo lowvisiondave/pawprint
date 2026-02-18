@@ -195,13 +195,16 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
   const [activeTab, setActiveTab] = useState<"dashboard" | "alerts" | "settings" | "install">("dashboard");
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("24h");
 
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/history?workspace_id=${workspaceId}&hours=24`)
+    setLoading(true);
+    const hours = timeRange === "24h" ? 24 : timeRange === "7d" ? 168 : 720;
+    fetch(`${API_URL}/api/v1/history?workspace_id=${workspaceId}&hours=${hours}`)
       .then(r => r.json())
       .then(d => setHistory(d.history || []))
       .finally(() => setLoading(false));
-  }, [workspaceId]);
+  }, [workspaceId, timeRange]);
 
   const latestReport = data?.latestReport;
   const isOnline = data?.gatewayOnline;
@@ -346,10 +349,28 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
               )}
 
               {/* Charts */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">📈 History</h3>
+                <div className="flex bg-zinc-900/50 rounded-lg p-1">
+                  {(["24h", "7d", "30d"] as const).map((range) => (
+                    <button
+                      key={range}
+                      onClick={() => setTimeRange(range)}
+                      className={`px-3 py-1.5 text-sm rounded-md transition-all ${
+                        timeRange === range
+                          ? "bg-indigo-500 text-white"
+                          : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      {range}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="grid lg:grid-cols-2 gap-6">
                 {/* Cost Chart */}
                 <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-5">
-                  <h3 className="font-semibold mb-4">💰 Cost (24h)</h3>
+                  <h3 className="font-semibold mb-4">💰 Cost ({timeRange})</h3>
                   <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={history}>
@@ -383,7 +404,7 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
 
                 {/* Sessions Chart */}
                 <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-5">
-                  <h3 className="font-semibold mb-4">💬 Sessions (24h)</h3>
+                  <h3 className="font-semibold mb-4">💬 Sessions ({timeRange})</h3>
                   <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={history}>

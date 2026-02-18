@@ -283,11 +283,16 @@ export async function GET(
     }
     
     if (path[0] === 'history') {
+      const url = new URL(request.url);
+      const hoursParam = url.searchParams.get('hours');
+      const hours = hoursParam ? parseInt(hoursParam) : 24;
+      const limit = Math.min(Math.floor(hours * 12), 1000); // 12 readings per hour max, cap at 1000
+      
       const result = await db`
         SELECT * FROM readings 
         WHERE workspace_id = ${workspaceId}
         ORDER BY timestamp DESC 
-        LIMIT 288;
+        LIMIT ${limit};
       `;
       
       return NextResponse.json({ 
