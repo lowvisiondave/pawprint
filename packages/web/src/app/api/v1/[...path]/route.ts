@@ -102,12 +102,36 @@ interface ReportPayload {
   modelBreakdown?: Record<string, number>;
   system?: {
     hostname?: string;
-    memoryUsedPercent?: number;
+    platform?: string;
+    arch?: string;
+    cpuCount?: number;
+    cpuUsagePercent?: number;
+    memoryTotalMb?: number;
     memoryFreeMb?: number;
-    diskUsedPercent?: number;
+    memoryUsedPercent?: number;
+    diskTotalGb?: number;
     diskFreeGb?: number;
+    diskUsedPercent?: number;
     localIp?: string;
+    uptime?: number;
+    loadAvg?: number[];
   };
+  endpoints?: Array<{
+    name: string;
+    url: string;
+    status: 'up' | 'down' | 'error';
+    responseTime?: number;
+    statusCode?: number;
+    error?: string;
+  }>;
+  processes?: Array<{
+    name: string;
+    running: boolean;
+    pid?: number;
+    cpu?: number;
+    memory?: number;
+  }>;
+  custom?: Record<string, number | string | boolean | null>;
   errors?: {
     last24h: number;
     lastError?: { message: string; timestamp: string };
