@@ -1003,6 +1003,41 @@ function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: Dashbo
                       </button>
                     </div>
                   </div>
+                  
+                  {/* Invite Link Section */}
+                  <div className="pt-4 border-t border-zinc-800">
+                    <label className="block text-sm text-zinc-400 mb-2">Agent Invite Link</label>
+                    <p className="text-xs text-zinc-500 mb-3">Share this link with agents to give them workspace access.</p>
+                    <div className="flex gap-2">
+                      <input 
+                        id="invite_link"
+                        readOnly
+                        placeholder="Click generate to create invite link..."
+                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-sm text-zinc-300 placeholder-zinc-600"
+                      />
+                      <button 
+                        id="generate_invite"
+                        onClick={() => {
+                          fetch(`${API_URL}/api/v1/workspace/invite?id=${workspaceId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                          })
+                            .then(r => r.json())
+                            .then(d => {
+                              if (d.inviteUrl) {
+                                (document.getElementById('invite_link') as HTMLInputElement).value = d.inviteUrl;
+                              } else {
+                                alert(d.error || 'Failed to generate invite');
+                              }
+                            });
+                        }}
+                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors text-sm whitespace-nowrap"
+                      >
+                        🔗 Generate
+                      </button>
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-2">Links expire in 24 hours</p>
+                  </div>
                 </div>
               </div>
               
