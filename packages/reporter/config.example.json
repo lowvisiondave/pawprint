@@ -1,0 +1,43 @@
+{
+  "apiKey": "pk_your_api_key_here",
+  "apiUrl": "https://web-xi-khaki.vercel.app/api",
+  "system": true,
+  "crons": true,
+  "openclaw": true,
+  "endpoints": [
+    {
+      "name": "Homepage",
+      "url": "https://example.com",
+      "expectedStatus": 200,
+      "timeout": 5000
+    },
+    {
+      "name": "API",
+      "url": "https://api.example.com/health",
+      "expectedStatus": 200,
+      "timeout": 5000
+    }
+  ],
+  "processes": [
+    {
+      "name": "nginx",
+      "expectedRunning": true
+    },
+    {
+      "name": "postgres",
+      "expectedRunning": true
+    }
+  ],
+  "custom": [
+    {
+      "name": "docker_containers",
+      "command": "docker ps -q | wc -l",
+      "parse": "number"
+    },
+    {
+      "name": "nginx_connections",
+      "command": "ss -tun | grep :80 | wc -l",
+      "parse": "number"
+    }
+  ]
+}
