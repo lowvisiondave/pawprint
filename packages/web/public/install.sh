@@ -13,27 +13,18 @@ fi
 INSTALL_DIR="$HOME/.pawprint"
 mkdir -p "$INSTALL_DIR"
 
-cat > "$INSTALL_DIR/reporter.sh" << EOF
+TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+cat > "$INSTALL_DIR/reporter.sh" << ENDSCRIPT
 #!/bin/bash
 API_KEY="$API_KEY"
 API_URL="https://web-xi-khaki.vercel.app/api"
 
-DATA=$(cat <<JSON
-{
-    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-    "gateway": {"online": true, "uptime": 0},
-    "sessions": {"active": 0, "total": 0},
-    "crons": {"enabled": 0, "total": 0},
-    "costs": {"today": 0, "month": 0}
-}
-JSON
-)
-
 curl -s -X POST "$API_URL/v1/report" \
     -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $API_KEY" \
-    -d "$DATA" > /dev/null 2>&1
-EOF
+    -H "Authorization: Bearer \$API_KEY" \
+    -d '{"timestamp": "$TIMESTAMP", "gateway": {"online": true, "uptime": 0}, "sessions": {"active": 0, "total": 0}, "crons": {"enabled": 0, "total": 0}, "costs": {"today": 0, "month": 0}}' > /dev/null 2>&1
+ENDSCRIPT
 
 chmod +x "$INSTALL_DIR/reporter.sh"
 
