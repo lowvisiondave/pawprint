@@ -221,14 +221,23 @@ function LandingPage() {
 }
 
 // Authenticated dashboard
-function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId: string }) {
+function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: DashboardData; workspaceId: string }) {
   const { data: session } = useSession();
+  const [workspaceId, setWorkspaceId] = useState(initialWorkspaceId);
+  const [workspaces, setWorkspaces] = useState<Array<{id: number; name: string}>>([]);
   const [activeTab, setActiveTab] = useState<"dashboard" | "agents" | "alerts" | "settings" | "install">("dashboard");
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [agents, setAgents] = useState<Array<{hostname: string; lastSeen: string; isOnline: boolean; cost24h: number; sessions: number}>>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("24h");
   const [workspaceSettings, setWorkspaceSettings] = useState<{name?: string; api_key?: string} | null>(null);
+  
+  // Fetch workspaces on mount
+  useEffect(() => {
+    fetch(`${API_URL}/api/v1/workspaces`)
+      .then(r => r.json())
+      .then(d => setWorkspaces(d.workspaces || []));
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -277,6 +286,23 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
             <div className="flex items-center gap-3">
               <span className="text-2xl">🐾</span>
               <span className="text-xl font-bold">PawPrint</span>
+              
+              {/* Workspace Selector */}
+              {workspaces.length > 0 && (
+                <select 
+                  value={workspaceId}
+                  onChange={(e) => {
+                    setWorkspaceId(e.target.value);
+                    window.location.href = `/?workspace_id=${e.target.value}`;
+                  }}
+                  className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1 text-sm text-white focus:outline-none focus:border-indigo-500"
+                >
+                  {workspaces.map(ws => (
+                    <option key={ws.id} value={ws.id}>{ws.name}</option>
+                  ))}
+                </select>
+              )}
+              
               <span className={`px-2 py-0.5 text-xs rounded-full ${isOnline ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
                 {isOnline ? "● Online" : "○ Offline"}
               </span>
@@ -890,6 +916,38 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
 
           {activeTab === "settings" && (
             <div className="space-y-6 max-w-2xl">
+              {/* Create New Workspace */}
+              <div className="backdrop-blur-xl bg-gradient-to-r from-indigo-500/10 to-violet-500/10 border border-indigo-500/20 rounded-2xl p-6">
+                <h2 className="text-xl font-bold mb-4">➕ Create New Workspace</h2>
+                <p className="text-sm text-zinc-400 mb-4">Create separate workspaces for different projects or environments.</p>
+                <div className="flex gap-2">
+                  <input 
+                    id="new_workspace_name"
+                    placeholder="Workspace name (e.g., Production, Staging)"
+                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <button 
+                    onClick={() => {
+                      const name = (document.getElementById('new_workspace_name') as HTMLInputElement)?.value;
+                      if (!name) return;
+                      fetch(`${API_URL}/api/v1/workspace/create?name=${encodeURIComponent(name)}`, {
+                        headers: { 'Authorization': `Bearer ${session?.accessToken}` }
+                      })
+                        .then(r => r.json())
+                        .then(d => {
+                          if (d.workspace) {
+                            setWorkspaces(ws => [...ws, d.workspace]);
+                            window.location.href = `/?workspace_id=${d.workspace.id}`;
+                          }
+                        });
+                    }}
+                    className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors"
+                  >
+                    Create
+                  </button>
+                </div>
+              </div>
+              
               {/* Workspace Info */}
               <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
                 <h2 className="text-xl font-bold mb-4">🏢 Workspace</h2>
