@@ -601,7 +601,17 @@ export async function GET(
     
     if (path[0] === 'dashboard') {
       const result = await db`
-        SELECT * FROM readings 
+        SELECT 
+          timestamp, gateway_online, gateway_uptime,
+          sessions_active, sessions_total,
+          crons_enabled, crons_total,
+          cost_today, cost_month,
+          tokens_input, tokens_output, model_breakdown,
+          system_hostname, system_platform, system_arch, system_cpu_count, 
+          system_cpu_usage_percent, system_memory_total_mb, system_memory_used_percent, 
+          system_memory_free_mb, system_disk_total_gb, system_disk_used_percent, 
+          system_disk_free_gb, system_local_ip, system_uptime
+        FROM readings 
         WHERE workspace_id = ${workspaceId}
         ORDER BY timestamp DESC 
         LIMIT 1;
