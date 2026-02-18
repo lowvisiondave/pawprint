@@ -656,7 +656,7 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                     <p className="text-xs text-zinc-500 mb-3">Open a terminal on your OpenClaw host and run:</p>
                     <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 overflow-x-auto">
                       <code className="text-xs text-emerald-400 whitespace-nowrap">
-                        curl -fsSL https://pawprint.dev/install.sh | bash -s pk_test_12345678
+                        curl -fsSL https://raw.githubusercontent.com/lowvisiondave/pawprint/main/packages/web/public/install.sh | bash -s pk_test_12345678
                       </code>
                     </div>
                   </div>
