@@ -471,6 +471,41 @@ export async function GET(
     }
   }
   
+  // Get agents (grouped by hostname) - works with workspace_id param, no auth required
+  if (path[0] === 'agents') {
+    const url = new URL(request.url);
+    const wsId = url.searchParams.get('workspace_id');
+    
+    if (!wsId) {
+      return NextResponse.json({ error: 'Workspace ID required' }, { status: 400 });
+    }
+    
+    const result = await db`
+      SELECT 
+        system_hostname as hostname,
+        MAX(timestamp) as last_seen,
+        MAX(gateway_online) as is_online,
+        SUM(cost_today) as cost_24h,
+        SUM(sessions_active) as total_sessions
+      FROM readings 
+      WHERE workspace_id = ${parseInt(wsId)}
+      AND system_hostname IS NOT NULL
+      AND timestamp > NOW() - INTERVAL '24 hours'
+      GROUP BY system_hostname
+      ORDER BY last_seen DESC;
+    `;
+    
+    return NextResponse.json({ 
+      agents: result.map(row => ({
+        hostname: row.hostname,
+        lastSeen: row.last_seen,
+        isOnline: row.is_online,
+        cost24h: Number(row.cost_24h || 0),
+        sessions: Number(row.total_sessions || 0),
+      }))
+    });
+  }
+  
   if (path[0] === 'dashboard' || path[0] === 'history') {
     // Get workspace ID from query param or use first workspace for logged-in user
     const url = new URL(request.url);
@@ -587,34 +622,6 @@ export async function GET(
           system_cpu_usage_percent: row.system_cpu_usage_percent ? Number(row.system_cpu_usage_percent) : null,
           system_memory_used_percent: row.system_memory_used_percent ? Number(row.system_memory_used_percent) : null,
           system_disk_used_percent: row.system_disk_used_percent ? Number(row.system_disk_used_percent) : null,
-        }))
-      });
-    }
-    
-    // Get agents (grouped by hostname)
-    if (path[0] === 'agents') {
-      const result = await db`
-        SELECT 
-          system_hostname as hostname,
-          MAX(timestamp) as last_seen,
-          MAX(gateway_online) as is_online,
-          SUM(cost_today) as cost_24h,
-          SUM(sessions_active) as total_sessions
-        FROM readings 
-        WHERE workspace_id = ${workspaceId}
-        AND system_hostname IS NOT NULL
-        AND timestamp > NOW() - INTERVAL '24 hours'
-        GROUP BY system_hostname
-        ORDER BY last_seen DESC;
-      `;
-      
-      return NextResponse.json({ 
-        agents: result.map(row => ({
-          hostname: row.hostname,
-          lastSeen: row.last_seen,
-          isOnline: row.is_online,
-          cost24h: Number(row.cost_24h || 0),
-          sessions: Number(row.total_sessions || 0),
         }))
       });
     }
