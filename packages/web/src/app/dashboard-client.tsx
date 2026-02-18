@@ -931,7 +931,7 @@ function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: Dashbo
                       const name = (document.getElementById('new_workspace_name') as HTMLInputElement)?.value;
                       if (!name) return;
                       fetch(`${API_URL}/api/v1/workspace/create?name=${encodeURIComponent(name)}`, {
-                        headers: { 'Authorization': `Bearer ${session?.accessToken}` }
+                        credentials: 'include'
                       })
                         .then(r => r.json())
                         .then(d => {
