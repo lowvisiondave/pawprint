@@ -39,6 +39,18 @@ async function ensureTables() {
   `;
   
   await db`
+    ALTER TABLE readings ADD COLUMN IF NOT EXISTS errors_count INT DEFAULT 0;
+  `;
+  
+  await db`
+    ALTER TABLE readings ADD COLUMN IF NOT EXISTS last_error_message TEXT;
+  `;
+  
+  await db`
+    ALTER TABLE readings ADD COLUMN IF NOT EXISTS last_error_timestamp TIMESTAMPTZ;
+  `;
+  
+  await db`
     CREATE INDEX IF NOT EXISTS idx_readings_workspace ON readings(workspace_id, timestamp DESC);
   `;
 }
@@ -346,7 +358,8 @@ export async function POST(
           cost_today, cost_month,
           tokens_input, tokens_output, model_breakdown,
           system_hostname, system_memory_used_percent, system_memory_free_mb,
-          system_disk_used_percent, system_disk_free_gb, system_local_ip
+          system_disk_used_percent, system_disk_free_gb, system_local_ip,
+          errors_count, last_error_message, last_error_timestamp
         ) VALUES (
           ${workspace.id},
           ${payload.timestamp || new Date().toISOString()},
@@ -366,7 +379,10 @@ export async function POST(
           ${payload.system?.memoryFreeMb ?? null},
           ${payload.system?.diskUsedPercent ?? null},
           ${payload.system?.diskFreeGb ?? null},
-          ${payload.system?.localIp ?? null}
+          ${payload.system?.localIp ?? null},
+          ${payload.errors?.last24h ?? 0},
+          ${payload.errors?.lastError?.message ?? null},
+          ${payload.errors?.lastError?.timestamp ?? null}
         )
       `;
       

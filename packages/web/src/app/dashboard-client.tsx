@@ -27,6 +27,10 @@ interface DashboardData {
       diskFreeGb?: number;
       localIp?: string;
     };
+    errors?: {
+      last24h: number;
+      lastError?: { message: string; timestamp: string };
+    };
   } | null;
   history?: Array<{ timestamp: string; cost_today: number; sessions_active: number }>;
   reportedAt: string | null;
@@ -274,7 +278,7 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
           {activeTab === "dashboard" && (
             <div className="space-y-6">
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 {[
                   {
                     label: "Today's Cost",
@@ -300,16 +304,31 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                     icon: "📅",
                     color: "from-amber-500/20 to-amber-500/5",
                   },
+                  {
+                    label: "Errors (24h)",
+                    value: latestReport?.errors?.last24h || 0,
+                    icon: "⚠️",
+                    color: (latestReport?.errors?.last24h || 0) > 0 
+                      ? "from-red-500/30 to-red-500/10" 
+                      : "from-zinc-500/20 to-zinc-500/5",
+                    error: (latestReport?.errors?.last24h || 0) > 0,
+                  },
+                    color: "from-amber-500/20 to-amber-500/5",
+                  },
                 ].map((stat, i) => (
                   <div
                     key={i}
-                    className="backdrop-blur-xl bg-gradient-to-br border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-all hover:scale-[1.02]"
+                    className={`backdrop-blur-xl bg-gradient-to-br border rounded-2xl p-5 hover:border-white/20 transition-all hover:scale-[1.02] ${
+                      (stat as any).error 
+                        ? "border-red-500/50 bg-gradient-to-br from-red-500/20 to-red-500/5" 
+                        : "border-white/10"
+                    }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-zinc-500 text-sm">{stat.label}</span>
                       <span className="text-xl">{stat.icon}</span>
                     </div>
-                    <div className="text-2xl sm:text-3xl font-bold">{stat.value}</div>
+                    <div className={`text-2xl sm:text-3xl font-bold ${(stat as any).error ? "text-red-400" : ""}`}>{stat.value}</div>
                   </div>
                 ))}
               </div>
