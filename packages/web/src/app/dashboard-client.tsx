@@ -21,12 +21,36 @@ interface DashboardData {
     modelBreakdown?: Record<string, number>;
     system?: {
       hostname?: string;
-      memoryUsedPercent?: number;
+      platform?: string;
+      arch?: string;
+      cpuCount?: number;
+      cpuUsagePercent?: number;
+      memoryTotalMb?: number;
       memoryFreeMb?: number;
-      diskUsedPercent?: number;
+      memoryUsedPercent?: number;
+      diskTotalGb?: number;
       diskFreeGb?: number;
+      diskUsedPercent?: number;
       localIp?: string;
+      uptime?: number;
+      loadAvg?: number[];
     };
+    endpoints?: Array<{
+      name: string;
+      url: string;
+      status: 'up' | 'down' | 'error';
+      responseTime?: number;
+      statusCode?: number;
+      error?: string;
+    }>;
+    processes?: Array<{
+      name: string;
+      running: boolean;
+      pid?: number;
+      cpu?: number;
+      memory?: number;
+    }>;
+    custom?: Record<string, number | string | boolean | null>;
     errors?: {
       last24h: number;
       lastError?: { message: string; timestamp: string };
@@ -348,29 +372,125 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                     <span className="text-xl">🖥️</span>
                     <span className="font-semibold">System Health</span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                     <div className="bg-zinc-900/50 rounded-xl p-3">
                       <div className="text-xs text-zinc-500 mb-1">Host</div>
                       <div className="font-mono text-sm truncate">{latestReport.system.hostname}</div>
                     </div>
                     <div className="bg-zinc-900/50 rounded-xl p-3">
+                      <div className="text-xs text-zinc-500 mb-1">CPU</div>
+                      <div className="font-semibold">
+                        {latestReport.system.cpuUsagePercent ?? 0}%
+                        <span className="text-zinc-500 text-xs ml-1">({latestReport.system.cpuCount ?? 1} cores)</span>
+                      </div>
+                    </div>
+                    <div className="bg-zinc-900/50 rounded-xl p-3">
                       <div className="text-xs text-zinc-500 mb-1">Memory</div>
                       <div className="font-semibold">
-                        {latestReport.system.memoryUsedPercent}% 
-                        <span className="text-zinc-500 text-xs ml-1">({latestReport.system.memoryFreeMb}MB free)</span>
+                        {latestReport.system.memoryUsedPercent ?? 0}% 
+                        <span className="text-zinc-500 text-xs ml-1">({latestReport.system.memoryFreeMb ?? 0}MB free)</span>
                       </div>
                     </div>
                     <div className="bg-zinc-900/50 rounded-xl p-3">
                       <div className="text-xs text-zinc-500 mb-1">Disk</div>
                       <div className="font-semibold">
-                        {latestReport.system.diskUsedPercent}%
-                        <span className="text-zinc-500 text-xs ml-1">({latestReport.system.diskFreeGb}GB free)</span>
+                        {latestReport.system.diskUsedPercent ?? 0}%
+                        <span className="text-zinc-500 text-xs ml-1">({latestReport.system.diskFreeGb ?? 0}GB free)</span>
+                      </div>
+                    </div>
+                    <div className="bg-zinc-900/50 rounded-xl p-3">
+                      <div className="text-xs text-zinc-500 mb-1">Uptime</div>
+                      <div className="font-semibold text-sm">
+                        {latestReport.system.uptime ? (
+                          latestReport.system.uptime >= 86400 
+                            ? `${Math.floor(latestReport.system.uptime / 86400)}d ${Math.floor((latestReport.system.uptime % 86400) / 3600)}h`
+                            : `${Math.floor(latestReport.system.uptime / 3600)}h ${Math.floor((latestReport.system.uptime % 3600) / 60)}m`
+                        ) : '-'}
                       </div>
                     </div>
                     <div className="bg-zinc-900/50 rounded-xl p-3">
                       <div className="text-xs text-zinc-500 mb-1">IP</div>
-                      <div className="font-mono text-sm">{latestReport.system.localIp}</div>
+                      <div className="font-mono text-sm">{latestReport.system.localIp ?? '-'}</div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Endpoints Card */}
+              {latestReport?.endpoints && latestReport.endpoints.length > 0 && (
+                <div className="backdrop-blur-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-xl">🌐</span>
+                    <span className="font-semibold">Endpoints</span>
+                    <span className="ml-auto text-sm">
+                      <span className="text-emerald-400">{latestReport.endpoints.filter(e => e.status === 'up').length}</span>
+                      <span className="text-zinc-500">/</span>
+                      <span className="text-zinc-400">{latestReport.endpoints.length}</span>
+                      <span className="text-zinc-500"> up</span>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {latestReport.endpoints.map((ep, i) => (
+                      <div key={i} className={`bg-zinc-900/50 rounded-xl p-3 flex items-center justify-between ${
+                        ep.status === 'up' ? 'border-l-2 border-emerald-500' : 'border-l-2 border-red-500'
+                      }`}>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-sm truncate">{ep.name}</div>
+                          <div className="text-xs text-zinc-500 truncate">{ep.url}</div>
+                        </div>
+                        <div className="ml-3 text-right">
+                          <div className={`text-sm font-semibold ${ep.status === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {ep.status === 'up' ? `${ep.responseTime}ms` : ep.status}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Processes Card */}
+              {latestReport?.processes && latestReport.processes.length > 0 && (
+                <div className="backdrop-blur-xl bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-xl">⚙️</span>
+                    <span className="font-semibold">Processes</span>
+                    <span className="ml-auto text-sm">
+                      <span className="text-violet-400">{latestReport.processes.filter(p => p.running).length}</span>
+                      <span className="text-zinc-500">/</span>
+                      <span className="text-zinc-400">{latestReport.processes.length}</span>
+                      <span className="text-zinc-500"> running</span>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {latestReport.processes.map((proc, i) => (
+                      <div key={i} className={`bg-zinc-900/50 rounded-xl p-3 flex items-center gap-2 ${
+                        proc.running ? 'border-l-2 border-violet-500' : 'border-l-2 border-zinc-600'
+                      }`}>
+                        <div className={`w-2 h-2 rounded-full ${proc.running ? 'bg-violet-400' : 'bg-zinc-600'}`} />
+                        <div className="font-medium text-sm truncate">{proc.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Metrics Card */}
+              {latestReport?.custom && Object.keys(latestReport.custom).length > 0 && (
+                <div className="backdrop-blur-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-xl">📊</span>
+                    <span className="font-semibold">Custom Metrics</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {Object.entries(latestReport.custom).map(([key, value]) => (
+                      <div key={key} className="bg-zinc-900/50 rounded-xl p-3">
+                        <div className="text-xs text-zinc-500 mb-1 truncate">{key}</div>
+                        <div className="font-semibold text-lg">
+                          {value === null ? '-' : typeof value === 'number' ? value.toLocaleString() : String(value)}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

@@ -74,6 +74,19 @@ async function ensureTables() {
   await db`
     CREATE INDEX IF NOT EXISTS idx_workspace_invites_token ON workspace_invites(token);
   `;
+  
+  // New system metrics columns
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS system_platform TEXT`;
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS system_arch TEXT`;
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS system_cpu_count INT`;
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS system_cpu_usage_percent INT`;
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS system_memory_total_mb INT`;
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS system_disk_total_gb INT`;
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS system_uptime BIGINT`;
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS system_load_avg JSONB`;
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS endpoints JSONB`;
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS processes JSONB`;
+  await db`ALTER TABLE readings ADD COLUMN IF NOT EXISTS custom_metrics JSONB`;
 }
 
 ensureTables().catch(console.error);
@@ -500,12 +513,23 @@ export async function GET(
           modelBreakdown: row.model_breakdown,
           system: row.system_hostname ? {
             hostname: row.system_hostname,
+            platform: row.system_platform,
+            arch: row.system_arch,
+            cpuCount: row.system_cpu_count ? Number(row.system_cpu_count) : undefined,
+            cpuUsagePercent: row.system_cpu_usage_percent ? Number(row.system_cpu_usage_percent) : undefined,
+            memoryTotalMb: row.system_memory_total_mb ? Number(row.system_memory_total_mb) : undefined,
+            memoryFreeMb: row.system_memory_free_mb ? Number(row.system_memory_free_mb) : undefined,
             memoryUsedPercent: row.system_memory_used_percent ? Number(row.system_memory_used_percent) : undefined,
-            memoryFreeMb: row.system_memory_free_mb,
-            diskUsedPercent: row.system_disk_used_percent ? Number(row.system_disk_used_percent) : undefined,
+            diskTotalGb: row.system_disk_total_gb ? Number(row.system_disk_total_gb) : undefined,
             diskFreeGb: row.system_disk_free_gb ? Number(row.system_disk_free_gb) : undefined,
+            diskUsedPercent: row.system_disk_used_percent ? Number(row.system_disk_used_percent) : undefined,
             localIp: row.system_local_ip,
+            uptime: row.system_uptime ? Number(row.system_uptime) : undefined,
+            loadAvg: row.system_load_avg ? JSON.parse(row.system_load_avg) : undefined,
           } : undefined,
+          endpoints: row.endpoints ? JSON.parse(row.endpoints) : undefined,
+          processes: row.processes ? JSON.parse(row.processes) : undefined,
+          custom: row.custom_metrics ? JSON.parse(row.custom_metrics) : undefined,
         },
         reportedAt: row.timestamp,
         gatewayOnline,
@@ -657,8 +681,11 @@ export async function POST(
           crons_enabled, crons_total,
           cost_today, cost_month,
           tokens_input, tokens_output, model_breakdown,
-          system_hostname, system_memory_used_percent, system_memory_free_mb,
-          system_disk_used_percent, system_disk_free_gb, system_local_ip,
+          system_hostname, system_platform, system_arch, system_cpu_count, system_cpu_usage_percent,
+          system_memory_total_mb, system_memory_used_percent, system_memory_free_mb,
+          system_disk_total_gb, system_disk_used_percent, system_disk_free_gb,
+          system_local_ip, system_uptime, system_load_avg,
+          endpoints, processes, custom_metrics,
           errors_count, last_error_message, last_error_timestamp
         ) VALUES (
           ${workspace.id},
@@ -675,11 +702,22 @@ export async function POST(
           ${payload.tokens?.output ?? null},
           ${payload.modelBreakdown ? JSON.stringify(payload.modelBreakdown) : null},
           ${payload.system?.hostname ?? null},
+          ${payload.system?.platform ?? null},
+          ${payload.system?.arch ?? null},
+          ${payload.system?.cpuCount ?? null},
+          ${payload.system?.cpuUsagePercent ?? null},
+          ${payload.system?.memoryTotalMb ?? null},
           ${payload.system?.memoryUsedPercent ?? null},
           ${payload.system?.memoryFreeMb ?? null},
+          ${payload.system?.diskTotalGb ?? null},
           ${payload.system?.diskUsedPercent ?? null},
           ${payload.system?.diskFreeGb ?? null},
           ${payload.system?.localIp ?? null},
+          ${payload.system?.uptime ?? null},
+          ${payload.system?.loadAvg ? JSON.stringify(payload.system.loadAvg) : null},
+          ${payload.endpoints ? JSON.stringify(payload.endpoints) : null},
+          ${payload.processes ? JSON.stringify(payload.processes) : null},
+          ${payload.custom ? JSON.stringify(payload.custom) : null},
           ${payload.errors?.last24h ?? 0},
           ${payload.errors?.lastError?.message ?? null},
           ${payload.errors?.lastError?.timestamp ?? null}
