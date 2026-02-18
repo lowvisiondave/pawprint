@@ -35,29 +35,42 @@ async function ensureTables() {
     );
   `;
   
-  await db`
-    ALTER TABLE readings ADD COLUMN IF NOT EXISTS workspace_id INT REFERENCES workspaces(id);
-  `;
+  // Run migrations in a try-catch to prevent API failures
+  try {
+    await db`
+      ALTER TABLE readings ADD COLUMN IF NOT EXISTS workspace_id INT REFERENCES workspaces(id);
+    `;
+  } catch (e) { /* column may exist */ }
   
-  await db`
-    ALTER TABLE readings ADD COLUMN IF NOT EXISTS sessions_active INT DEFAULT 0;
-  `;
+  try {
+    await db`
+      ALTER TABLE readings ADD COLUMN IF NOT EXISTS sessions_active INT DEFAULT 0;
+    `;
+  } catch (e) { /* column may exist */ }
   
-  await db`
-    ALTER TABLE readings ADD COLUMN IF NOT EXISTS sessions_total INT DEFAULT 0;
-  `;
+  try {
+    await db`
+      ALTER TABLE readings ADD COLUMN IF NOT EXISTS sessions_total INT DEFAULT 0;
+    `;
+  } catch (e) { /* column may exist */ }
   
-  await db`
-    ALTER TABLE readings ADD COLUMN IF NOT EXISTS tokens_input BIGINT DEFAULT 0;
-  `;
+  try {
+    await db`
+      ALTER TABLE readings ADD COLUMN IF NOT EXISTS tokens_input BIGINT DEFAULT 0;
+    `;
+  } catch (e) { /* column may exist */ }
   
-  await db`
-    ALTER TABLE readings ADD COLUMN IF NOT EXISTS tokens_output BIGINT DEFAULT 0;
-  `;
+  try {
+    await db`
+      ALTER TABLE readings ADD COLUMN IF NOT EXISTS tokens_output BIGINT DEFAULT 0;
+    `;
+  } catch (e) { /* column may exist */ }
   
-  await db`
-    ALTER TABLE readings ADD COLUMN IF NOT EXISTS errors_count INT DEFAULT 0;
-  `;
+  try {
+    await db`
+      ALTER TABLE readings ADD COLUMN IF NOT EXISTS errors_count INT DEFAULT 0;
+    `;
+  } catch (e) { /* column may exist */ }
   
   await db`
     ALTER TABLE readings ADD COLUMN IF NOT EXISTS last_error_message TEXT;
