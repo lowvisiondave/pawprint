@@ -227,7 +227,22 @@ function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: Dashbo
   const [workspaces, setWorkspaces] = useState<Array<{id: number; name: string}>>([]);
   const [activeTab, setActiveTab] = useState<"dashboard" | "agents" | "alerts" | "settings" | "install">("dashboard");
   const [history, setHistory] = useState<HistoryPoint[]>([]);
-  const [agents, setAgents] = useState<Array<{hostname: string; lastSeen: string; isOnline: boolean; cost24h: number; sessions: number}>>([]);
+  const [agents, setAgents] = useState<Array<{
+    hostname: string;
+    lastSeen: string;
+    isOnline: boolean;
+    sessions24h: number;
+    totalSessions: number;
+    tokensInput: number;
+    tokensOutput: number;
+    platform: string;
+    arch: string;
+    cpuCount: number;
+    avgCpu: number;
+    avgMemory: number;
+    uptime: number;
+    ip: string;
+  }>>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("24h");
   const [workspaceSettings, setWorkspaceSettings] = useState<{name?: string; api_key?: string} | null>(null);
@@ -807,32 +822,76 @@ function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: Dashbo
           {activeTab === "agents" && (
             <div className="space-y-6">
               <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
-                <h2 className="text-xl font-bold mb-2">🖥️ Agents</h2>
-                <p className="text-zinc-400 mb-6">Monitor multiple agents in your workspace</p>
+                <h2 className="text-xl font-bold mb-2">🖥️ Agent Fleet</h2>
+                <p className="text-zinc-400 mb-6">{agents.length} agent{agents.length !== 1 ? 's' : ''} reporting</p>
                 
                 {agents.length === 0 ? (
                   <div className="text-center py-8 text-zinc-500">
                     No agents reporting yet. Install the reporter to see agents here.
                   </div>
                 ) : (
-                  <div className="grid gap-4">
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {agents.map((agent) => (
                       <div 
                         key={agent.hostname}
-                        className="backdrop-blur-xl bg-zinc-900/50 border border-white/10 rounded-xl p-4 flex items-center justify-between"
+                        className="backdrop-blur-xl bg-gradient-to-br from-zinc-900/80 to-zinc-800/30 border border-white/10 rounded-xl p-5"
                       >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-3 h-3 rounded-full ${agent.isOnline ? "bg-emerald-400 animate-pulse" : "bg-zinc-500"}`} />
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${agent.isOnline ? "bg-emerald-400 animate-pulse" : "bg-zinc-500"}`} />
+                            <div className="font-mono font-bold text-lg">{agent.hostname}</div>
+                          </div>
+                          <div className="text-xs text-zinc-500">
+                            {agent.platform}/{agent.arch}
+                          </div>
+                        </div>
+                        
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-zinc-950/50 rounded-lg p-3">
+                            <div className="text-xs text-zinc-500 mb-1">Sessions (24h)</div>
+                            <div className="font-bold text-xl">{agent.sessions24h}</div>
+                          </div>
+                          <div className="bg-zinc-950/50 rounded-lg p-3">
+                            <div className="text-xs text-zinc-500 mb-1">Total Sessions</div>
+                            <div className="font-bold text-xl">{agent.totalSessions}</div>
+                          </div>
+                          <div className="bg-zinc-950/50 rounded-lg p-3">
+                            <div className="text-xs text-zinc-500 mb-1">Input Tokens</div>
+                            <div className="font-bold text-lg text-blue-400">{(agent.tokensInput / 1000).toFixed(1)}K</div>
+                          </div>
+                          <div className="bg-zinc-950/50 rounded-lg p-3">
+                            <div className="text-xs text-zinc-500 mb-1">Output Tokens</div>
+                            <div className="font-bold text-lg text-violet-400">{(agent.tokensOutput / 1000).toFixed(1)}K</div>
+                          </div>
+                        </div>
+                        
+                        {/* System Info */}
+                        <div className="mt-4 pt-4 border-t border-zinc-800 grid grid-cols-3 gap-2 text-xs">
                           <div>
-                            <div className="font-mono font-semibold">{agent.hostname}</div>
-                            <div className="text-xs text-zinc-500">
-                              Last seen: {agent.lastSeen ? new Date(agent.lastSeen).toLocaleString() : 'Never'}
+                            <div className="text-zinc-500">CPU</div>
+                            <div className="font-semibold">{agent.avgCpu}%</div>
+                          </div>
+                          <div>
+                            <div className="text-zinc-500">Memory</div>
+                            <div className="font-semibold">{agent.avgMemory}%</div>
+                          </div>
+                          <div>
+                            <div className="text-zinc-500">Uptime</div>
+                            <div className="font-semibold">
+                              {agent.uptime ? (
+                                agent.uptime >= 86400 
+                                  ? `${Math.floor(agent.uptime / 86400)}d`
+                                  : `${Math.floor(agent.uptime / 3600)}h`
+                              ) : '-'}
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-semibold text-lg">{agent.sessions}</div>
-                          <div className="text-xs text-zinc-500">sessions today</div>
+                        
+                        {/* Last Seen */}
+                        <div className="mt-3 text-xs text-zinc-500">
+                          Last seen: {agent.lastSeen ? new Date(agent.lastSeen).toLocaleString() : 'Never'}
                         </div>
                       </div>
                     ))}

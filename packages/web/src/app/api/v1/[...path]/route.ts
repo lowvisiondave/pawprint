@@ -486,7 +486,7 @@ export async function GET(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 });
       }
       
-      // Calculate 24 hours ago in JS to avoid DB interval issues
+      // Calculate 24 hours ago
       const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       
       const result = await db`
@@ -494,13 +494,23 @@ export async function GET(
           COALESCE(system_hostname, 'unknown') as hostname,
           MAX(timestamp) as last_seen,
           BOOL_OR(gateway_online) as is_online,
+          SUM(COALESCE(sessions_active, 0)) as sessions_24h,
+          SUM(COALESCE(sessions_total, 0)) as total_sessions,
+          SUM(COALESCE(tokens_input, 0)) as tokens_input,
+          SUM(COALESCE(tokens_output, 0)) as tokens_output,
           SUM(COALESCE(cost_today, 0)) as cost_24h,
-          SUM(COALESCE(sessions_active, 0)) as total_sessions
+          MAX(system_platform) as platform,
+          MAX(system_arch) as arch,
+          MAX(system_cpu_count) as cpu_count,
+          AVG(COALESCE(system_cpu_usage_percent, 0)) as avg_cpu,
+          AVG(COALESCE(system_memory_used_percent, 0)) as avg_memory,
+          MAX(system_uptime) as uptime,
+          MAX(system_local_ip) as ip
         FROM readings 
         WHERE workspace_id = ${workspaceIdNum}
         AND timestamp > ${dayAgo}
         GROUP BY COALESCE(system_hostname, 'unknown')
-        ORDER BY last_seen DESC
+        ORDER BY sessions_24h DESC
         LIMIT 20;
       `;
       
@@ -509,8 +519,18 @@ export async function GET(
           hostname: row.hostname,
           lastSeen: row.last_seen,
           isOnline: row.is_online,
+          sessions24h: Number(row.sessions_24h || 0),
+          totalSessions: Number(row.total_sessions || 0),
+          tokensInput: Number(row.tokens_input || 0),
+          tokensOutput: Number(row.tokens_output || 0),
           cost24h: Number(row.cost_24h || 0),
-          sessions: Number(row.total_sessions || 0),
+          platform: row.platform,
+          arch: row.arch,
+          cpuCount: row.cpu_count,
+          avgCpu: Math.round(Number(row.avg_cpu || 0)),
+          avgMemory: Math.round(Number(row.avg_memory || 0)),
+          uptime: row.uptime,
+          ip: row.ip,
         }))
       });
     } catch (err: any) {
