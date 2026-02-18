@@ -40,6 +40,22 @@ async function ensureTables() {
   `;
   
   await db`
+    ALTER TABLE readings ADD COLUMN IF NOT EXISTS sessions_active INT DEFAULT 0;
+  `;
+  
+  await db`
+    ALTER TABLE readings ADD COLUMN IF NOT EXISTS sessions_total INT DEFAULT 0;
+  `;
+  
+  await db`
+    ALTER TABLE readings ADD COLUMN IF NOT EXISTS tokens_input BIGINT DEFAULT 0;
+  `;
+  
+  await db`
+    ALTER TABLE readings ADD COLUMN IF NOT EXISTS tokens_output BIGINT DEFAULT 0;
+  `;
+  
+  await db`
     ALTER TABLE readings ADD COLUMN IF NOT EXISTS errors_count INT DEFAULT 0;
   `;
   

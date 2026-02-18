@@ -536,17 +536,19 @@ async function main() {
   }
   
   // OpenClaw metrics
-  if (config.openclaw) {
-    console.log('\n🤖 Checking OpenClaw...');
-    const openclawDir = join(homedir(), '.openclaw');
-    if (existsSync(openclawDir)) {
-      const ocMetrics = getOpenClawMetrics(openclawDir);
-      Object.assign(payload, ocMetrics);
-      console.log(`   Sessions: ${payload.sessions.active} active`);
-      console.log(`   Crons: ${payload.crons.enabled} enabled`);
-    } else {
-      console.log('   OpenClaw directory not found');
-    }
+  console.log('\n🤖 Checking OpenClaw...');
+  const openclawDir = join(homedir(), '.openclaw');
+  if (existsSync(openclawDir)) {
+    console.log(`   OpenClaw dir: ${openclawDir}`);
+    const sessionsFile = join(openclawDir, 'agents', 'main', 'sessions', 'sessions.json');
+    console.log(`   Sessions file exists: ${existsSync(sessionsFile)}`);
+    const ocMetrics = getOpenClawMetrics(openclawDir);
+    console.log(`   Sessions from metrics: ${JSON.stringify(ocMetrics.sessions)}`);
+    Object.assign(payload, ocMetrics);
+    console.log(`   Sessions: ${payload.sessions.active} active, ${payload.sessions.total} total`);
+    console.log(`   Crons: ${payload.crons.enabled} enabled`);
+  } else {
+    console.log('   OpenClaw directory not found');
   }
   
   // Gateway is online if we got this far
