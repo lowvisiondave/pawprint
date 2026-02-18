@@ -11,20 +11,26 @@ fi
 INSTALL_DIR="$HOME/.pawprint"
 mkdir -p "$INSTALL_DIR"
 
-cat > "$INSTALL_DIR/reporter.sh" << 'EOF'
-#!/bin/bash
-API_KEY="API_KEY_PLACEHOLDER"
-API_URL="https://web-xi-khaki.vercel.app/api"
+# Create the reporter script with placeholder
+REPORTER_CONTENT="#!/bin/bash
+API_KEY=\"REPLACE_ME\"
+API_URL=\"https://web-xi-khaki.vercel.app/api\"
 
-TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+TIMESTAMP=\$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-curl -s -X POST "$API_URL/v1/report" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $API_KEY" \
-    -d "{\"timestamp\": \"$TIMESTAMP\", \"gateway\": {\"online\": true, \"uptime\": 0}, \"sessions\": {\"active\": 0, \"total\": 0}, \"crons\": {\"enabled\": 0, \"total\": 0}, \"costs\": {\"today\": 0, \"month\": 0}}"
-EOF
+curl -s -X POST \"\$API_URL/v1/report\" \
+    -H \"Content-Type: application/json\" \
+    -H \"Authorization: Bearer \$API_KEY\" \
+    -d \"{\\\"timestamp\\\": \\\"\$TIMESTAMP\\\", \\\"gateway\\\": {\\\"online\\\": true, \\\"uptime\\\": 0}, \\\"sessions\\\": {\\\"active\\\": 0, \\\"total\\\": 0}, \\\"crons\\\": {\\\"enabled\\\": 0, \\\"total\\\": 0}, \\\"costs\\\": {\\\"today\\\": 0, \\\"month\\\": 0}}\"
+"
 
-sed -i "s|API_KEY_PLACEHOLDER|$API_KEY|" "$INSTALL_DIR/reporter.sh"
+echo "$REPORTER_CONTENT" > "$INSTALL_DIR/reporter.sh"
+
+# Replace placeholder using portable method
+ printf '%s\n' "s|REPLACE_ME|$API_KEY|" | ed -s "$INSTALL_DIR/reporter.sh" 2>/dev/null || \
+ sed -i '' "s|REPLACE_ME|$API_KEY|g" "$INSTALL_DIR/reporter.sh" 2>/dev/null || \
+ sed -i "s|REPLACE_ME|$API_KEY|g" "$INSTALL_DIR/reporter.sh"
+
 chmod +x "$INSTALL_DIR/reporter.sh"
 
 CRON_LINE="*/5 * * * * $INSTALL_DIR/reporter.sh"
@@ -34,5 +40,4 @@ fi
 
 echo "PawPrint reporter installed!"
 echo "Script: $INSTALL_DIR/reporter.sh"
-echo "Cron: runs every 5 minutes"
 echo "Test: $INSTALL_DIR/reporter.sh"
