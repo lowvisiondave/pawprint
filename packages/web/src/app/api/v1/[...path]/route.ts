@@ -486,6 +486,9 @@ export async function GET(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 });
       }
       
+      // Calculate 24 hours ago in JS to avoid DB interval issues
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      
       const result = await db`
         SELECT 
           COALESCE(system_hostname, 'unknown') as hostname,
@@ -495,7 +498,7 @@ export async function GET(
           SUM(COALESCE(sessions_active, 0)) as total_sessions
         FROM readings 
         WHERE workspace_id = ${workspaceIdNum}
-        AND timestamp > NOW() - INTERVAL '24 hours'
+        AND timestamp > ${dayAgo}
         GROUP BY COALESCE(system_hostname, 'unknown')
         ORDER BY last_seen DESC
         LIMIT 20;
@@ -510,9 +513,9 @@ export async function GET(
           sessions: Number(row.total_sessions || 0),
         }))
       });
-    } catch (err) {
-      console.error('Agents endpoint error:', err);
-      return NextResponse.json({ error: 'Failed to fetch agents' }, { status: 500 });
+    } catch (err: any) {
+      console.error('Agents endpoint error:', err.message);
+      return NextResponse.json({ error: 'Failed to fetch agents', detail: err.message }, { status: 500 });
     }
   }
   
