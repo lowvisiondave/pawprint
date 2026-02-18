@@ -763,16 +763,41 @@ export async function POST(
     });
   }
   
-  // Require API key for other endpoints
-  if (!authHeader?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'Missing API key' }, { status: 401 });
+  // Dev mode: allow reports without API key (auto-create workspace)
+  let workspace = null;
+  let workspaceId: number | null = null;
+  
+  if (authHeader?.startsWith('Bearer ')) {
+    const apiKey = authHeader.slice(7);
+    workspace = await getWorkspaceFromKey(apiKey);
   }
   
-  const apiKey = authHeader.slice(7);
-  const workspace = await getWorkspaceFromKey(apiKey);
-  
+  // If no valid API key, check for dev mode or create default workspace
   if (!workspace) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+    // For development, use workspace_id=1 if provided, or auto-create
+    const url = new URL(request.url);
+    const devWorkspaceId = url.searchParams.get('workspace_id');
+    if (devWorkspaceId) {
+      workspaceId = parseInt(devWorkspaceId);
+    } else {
+      // Auto-create or use first available workspace for development
+      const defaultWs = await db`SELECT id FROM workspaces ORDER BY id LIMIT 1`;
+      if (defaultWs.length > 0) {
+        workspaceId = defaultWs[0].id;
+      } else {
+        // Create a default development workspace
+        const newApiKey = 'pk_dev_' + randomUUID();
+        const result = await db`
+          INSERT INTO workspaces (name, api_key)
+          VALUES ('Development', ${newApiKey})
+          RETURNING id
+        `;
+        workspaceId = result[0].id;
+        console.log('Created dev workspace:', workspaceId);
+      }
+    }
+  } else {
+    workspaceId = workspace.id;
   }
   
   if (path[0] === 'report') {
@@ -803,7 +828,7 @@ export async function POST(
           endpoints, processes, custom_metrics,
           errors_count, last_error_message, last_error_timestamp
         ) VALUES (
-          ${workspace.id},
+          ${workspaceId},
           ${p.timestamp || new Date().toISOString()},
           ${p.gateway?.online ?? null},
           ${p.gateway?.uptime ?? null},
@@ -839,8 +864,8 @@ export async function POST(
         )
       `;
       
-      // Check alerts
-      if (workspace.alert_cost_threshold && payload.costs?.today > Number(workspace.alert_cost_threshold)) {
+      // Check alerts (only if we have a real workspace with alert config)
+      if (workspace && workspace.alert_cost_threshold && payload.costs?.today > Number(workspace.alert_cost_threshold)) {
         if (workspace.slack_webhook_url) {
           await fetch(workspace.slack_webhook_url, {
             method: 'POST',
@@ -853,11 +878,11 @@ export async function POST(
       }
       
       // Check uptime - get readings from last N minutes
-      if (workspace.alert_downtime_minutes) {
+      if (workspace && workspace.alert_downtime_minutes) {
         const cutoff = new Date(Date.now() - workspace.alert_downtime_minutes * 60 * 1000).toISOString();
         const recentReadings = await db`
           SELECT gateway_online FROM readings 
-          WHERE workspace_id = ${workspace.id} AND timestamp > ${cutoff}
+          WHERE workspace_id = ${workspaceId} AND timestamp > ${cutoff}
           ORDER BY timestamp DESC
         `;
         

@@ -133,6 +133,8 @@ interface ReportPayload {
   sessions: { active: number; total: number };
   crons: { enabled: number; total: number };
   costs: { today: number; month: number };
+  tokens?: { input: number; output: number };
+  modelBreakdown?: Record<string, number>;
   system?: SystemStats;
   endpoints?: EndpointStatus[];
   processes?: ProcessStatus[];
@@ -303,9 +305,40 @@ function checkProcesses(processes: ProcessCheck[]): ProcessStatus[] {
 // CRON MONITORING
 // ============================================================================
 
-function getCronJobs(): CronJob[] {
+function getCronJobs(openclawDir?: string): CronJob[] {
   const jobs: CronJob[] = [];
   
+  // First, try to get OpenClaw cron jobs
+  if (openclawDir) {
+    try {
+      const cronFile = join(openclawDir, 'cron', 'jobs.json');
+      if (existsSync(cronFile)) {
+        const data = JSON.parse(readFileSync(cronFile, 'utf-8'));
+        const openclawJobs = data.jobs || [];
+        for (const job of openclawJobs) {
+          jobs.push({
+            name: job.name || job.id || 'unknown',
+            schedule: job.schedule?.kind === 'every' 
+              ? `every ${job.schedule.everyMs / 60000}min`
+              : job.schedule?.kind === 'cron'
+                ? job.schedule.expr
+                : 'unknown',
+            lastRun: job.state?.lastRunAtMs 
+              ? new Date(job.state.lastRunAtMs).toISOString() 
+              : undefined,
+            lastStatus: job.state?.lastStatus === 'ok' ? 'success' : 
+                        job.state?.lastStatus === 'error' ? 'failed' :
+                        job.enabled ? 'success' : undefined,
+            lastDuration: job.state?.lastDurationMs,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error reading OpenClaw cron jobs:', err);
+    }
+  }
+  
+  // Also check system crontab
   try {
     if (platform() === 'win32') {
       // Windows: Check scheduled tasks
@@ -351,27 +384,60 @@ function getOpenClawMetrics(openclawDir: string): Partial<ReportPayload> {
     sessions: { active: 0, total: 0 },
     crons: { enabled: 0, total: 0 },
     costs: { today: 0, month: 0 },
+    tokens: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
   };
   
   try {
-    // Sessions
+    // Sessions - read from sessions.json
     const sessionsFile = join(openclawDir, 'agents', 'main', 'sessions', 'sessions.json');
     if (existsSync(sessionsFile)) {
       const data = JSON.parse(readFileSync(sessionsFile, 'utf-8'));
       const sessions = Object.values(data) as any[];
       const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+      const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
       
       for (const session of sessions) {
-        result.sessions!.total++;
-        const lastActivity = new Date(session.updatedAt || 0).getTime();
+        // Count active sessions (updated in last 10 minutes)
+        const lastActivity = session.updatedAt || 0;
         if (lastActivity > tenMinutesAgo) {
           result.sessions!.active++;
         }
+        
+        // Count total sessions
+        result.sessions!.total++;
+        
+        // Read token counts from session file if available
+        if (session.sessionFile && existsSync(session.sessionFile)) {
+          try {
+            const sessionContent = readFileSync(session.sessionFile, 'utf-8');
+            const lines = sessionContent.trim().split('\n');
+            
+            for (const line of lines) {
+              try {
+                const entry = JSON.parse(line);
+                // Count tokens from reasoning_content, if present
+                if (entry.reasoning_content) {
+                  // Estimate tokens from reasoning (roughly 4 chars per token)
+                  result.tokens!.outputTokens += Math.ceil(entry.reasoning_content.length / 4);
+                }
+                // Count input tokens (from content)
+                if (entry.content) {
+                  const content = typeof entry.content === 'string' 
+                    ? entry.content 
+                    : JSON.stringify(entry.content);
+                  result.tokens!.inputTokens += Math.ceil(content.length / 4);
+                }
+              } catch {}
+            }
+          } catch {}
+        }
       }
+      
+      result.tokens!.totalTokens = result.tokens!.inputTokens + result.tokens!.outputTokens;
     }
     
-    // Crons
-    const cronFile = join(openclawDir, 'config', 'cron.json');
+    // Crons - read from cron/jobs.json
+    const cronFile = join(openclawDir, 'cron', 'jobs.json');
     if (existsSync(cronFile)) {
       const config = JSON.parse(readFileSync(cronFile, 'utf-8'));
       const jobs = config.jobs || [];
@@ -381,11 +447,11 @@ function getOpenClawMetrics(openclawDir: string): Partial<ReportPayload> {
       };
     }
     
-    // Gateway uptime
-    const stateFile = join(openclawDir, 'gateway', 'state.json');
-    if (existsSync(stateFile)) {
-      const state = JSON.parse(readFileSync(stateFile, 'utf-8'));
-      const startedAt = state.startedAt || state.started_at;
+    // Gateway uptime - read from openclaw.json
+    const configFile = join(openclawDir, 'openclaw.json');
+    if (existsSync(configFile)) {
+      const config = JSON.parse(readFileSync(configFile, 'utf-8'));
+      const startedAt = config.startedAt || config.started_at;
       if (startedAt) {
         result.gateway = {
           online: true,
@@ -492,6 +558,7 @@ async function main() {
     sessions: { active: 0, total: 0 },
     crons: { enabled: 0, total: 0 },
     costs: { today: 0, month: 0 },
+    tokens: { input: 0, output: 0 },
   };
   
   // System metrics
@@ -523,9 +590,11 @@ async function main() {
   // Cron jobs
   if (config.crons) {
     console.log('\n⏰ Checking cron jobs...');
-    const crons = getCronJobs();
-    payload.crons = { enabled: crons.length, total: crons.length };
-    console.log(`   ${crons.length} cron jobs found`);
+    const openclawDir = join(homedir(), '.openclaw');
+    const crons = getCronJobs(openclawDir);
+    const enabled = crons.filter(c => c.lastStatus !== undefined).length;
+    payload.crons = { enabled, total: crons.length };
+    console.log(`   ${crons.length} cron jobs found (${enabled} enabled)`);
   }
   
   // Custom metrics
@@ -544,11 +613,30 @@ async function main() {
     console.log(`   Sessions file exists: ${existsSync(sessionsFile)}`);
     const ocMetrics = getOpenClawMetrics(openclawDir);
     console.log(`   Sessions from metrics: ${JSON.stringify(ocMetrics.sessions)}`);
-    Object.assign(payload, ocMetrics);
+    // Merge sessions but keep cron count from getCronJobs (more accurate)
+    if (ocMetrics.sessions) {
+      payload.sessions = ocMetrics.sessions;
+    }
+    if (ocMetrics.tokens) {
+      payload.tokens = ocMetrics.tokens;
+    }
+    if (ocMetrics.gateway) {
+      payload.gateway = ocMetrics.gateway;
+    }
     console.log(`   Sessions: ${payload.sessions.active} active, ${payload.sessions.total} total`);
     console.log(`   Crons: ${payload.crons.enabled} enabled`);
   } else {
     console.log('   OpenClaw directory not found');
+  }
+  
+  // Calculate costs from tokens (using default pricing)
+  if (payload.tokens && (payload.tokens.input > 0 || payload.tokens.output > 0)) {
+    const inputCost = (payload.tokens.input / 1000000) * MODEL_PRICING.default.input;
+    const outputCost = (payload.tokens.output / 1000000) * MODEL_PRICING.default.output;
+    payload.costs.today = inputCost + outputCost;
+    payload.costs.month = payload.costs.today; // Simplified - just use today's for now
+    console.log(`   Tokens: ${payload.tokens.input} input, ${payload.tokens.output} output`);
+    console.log(`   Est. cost: $${payload.costs.today.toFixed(4)}`);
   }
   
   // Gateway is online if we got this far
