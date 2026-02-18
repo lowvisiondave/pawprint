@@ -57,6 +57,22 @@ async function ensureTables() {
   await db`
     CREATE INDEX IF NOT EXISTS idx_readings_workspace ON readings(workspace_id, timestamp DESC);
   `;
+  
+  await db`
+    CREATE TABLE IF NOT EXISTS workspace_invites (
+      id SERIAL PRIMARY KEY,
+      workspace_id INT REFERENCES workspaces(id) ON DELETE CASCADE,
+      token TEXT UNIQUE NOT NULL,
+      role TEXT DEFAULT 'member',
+      used_at TIMESTAMPTZ,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `;
+  
+  await db`
+    CREATE INDEX IF NOT EXISTS idx_workspace_invites_token ON workspace_invites(token);
+  `;
 }
 
 ensureTables().catch(console.error);
@@ -167,6 +183,183 @@ export async function GET(
     return NextResponse.json({ workspace: result[0] });
   }
   
+  // Create workspace invite
+  if (path[0] === 'workspace' && path[1] === 'invite') {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Get user_id
+    const users = await db`
+      SELECT id FROM users WHERE email = ${session.user.email}
+    `;
+    if (users.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    const currentUserId = users[0].id;
+    
+    const url = new URL(request.url);
+    const workspaceId = url.searchParams.get('id');
+    
+    if (!workspaceId) {
+      return NextResponse.json({ error: 'Workspace ID required' }, { status: 400 });
+    }
+    
+    // Verify ownership
+    const verify = await db`
+      SELECT id, name FROM workspaces WHERE id = ${parseInt(workspaceId)} AND user_id = ${currentUserId}
+    `;
+    if (verify.length === 0) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    
+    const workspace = verify[0];
+    
+    // Generate invite token
+    const token = 'inv_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+    
+    await db`
+      INSERT INTO workspace_invites (workspace_id, token, expires_at)
+      VALUES (${parseInt(workspaceId)}, ${token}, ${expiresAt})
+    `;
+    
+    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://pawprint.app'}/invite/${token}`;
+    
+    return NextResponse.json({ 
+      inviteUrl,
+      token,
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+      expiresAt
+    });
+  }
+  
+  // Validate invite token
+  if (path[0] === 'invite' && path[1] === 'validate') {
+    const url = new URL(request.url);
+    const token = url.searchParams.get('token');
+    
+    if (!token) {
+      return NextResponse.json({ error: 'Token required' }, { status: 400 });
+    }
+    
+    const invites = await db`
+      SELECT wi.*, w.name as workspace_name, w.slug as workspace_slug
+      FROM workspace_invites wi
+      JOIN workspaces w ON wi.workspace_id = w.id
+      WHERE wi.token = ${token}
+    `;
+    
+    if (invites.length === 0) {
+      return NextResponse.json({ error: 'Invalid invite' }, { status: 404 });
+    }
+    
+    const invite = invites[0];
+    
+    if (invite.used_at) {
+      return NextResponse.json({ error: 'Invite already used', workspaceName: invite.workspace_name }, { status: 410 });
+    }
+    
+    if (new Date(invite.expires_at) < new Date()) {
+      return NextResponse.json({ error: 'Invite expired', workspaceName: invite.workspace_name }, { status: 410 });
+    }
+    
+    return NextResponse.json({ 
+      valid: true,
+      workspaceId: invite.workspace_id,
+      workspaceName: invite.workspace_name,
+      workspaceSlug: invite.workspace_slug,
+      role: invite.role,
+      expiresAt: invite.expires_at
+    });
+  }
+  
+  // Accept invite (join workspace)
+  if (path[0] === 'invite' && path[1] === 'accept') {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Must be logged in to accept invite' }, { status: 401 });
+    }
+    
+    const body = await request.json();
+    const { token } = body;
+    
+    if (!token) {
+      return NextResponse.json({ error: 'Token required' }, { status: 400 });
+    }
+    
+    // Get user
+    const users = await db`
+      SELECT id FROM users WHERE email = ${session.user.email}
+    `;
+    if (users.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    const currentUserId = users[0].id;
+    
+    // Validate token
+    const invites = await db`
+      SELECT wi.*, w.name as workspace_name
+      FROM workspace_invites wi
+      JOIN workspaces w ON wi.workspace_id = w.id
+      WHERE wi.token = ${token}
+    `;
+    
+    if (invites.length === 0) {
+      return NextResponse.json({ error: 'Invalid invite' }, { status: 404 });
+    }
+    
+    const invite = invites[0];
+    
+    if (invite.used_at) {
+      return NextResponse.json({ error: 'Invite already used' }, { status: 410 });
+    }
+    
+    if (new Date(invite.expires_at) < new Date()) {
+      return NextResponse.json({ error: 'Invite expired' }, { status: 410 });
+    }
+    
+    // Check if user already has access to this workspace
+    const existing = await db`
+      SELECT id FROM workspaces WHERE id = ${invite.workspace_id} AND user_id = ${currentUserId}
+    `;
+    
+    if (existing.length > 0) {
+      // Mark invite as used anyway
+      await db`
+        UPDATE workspace_invites SET used_at = NOW() WHERE id = ${invite.id}
+      `;
+      return NextResponse.json({ 
+        message: 'You already have access to this workspace',
+        workspaceId: invite.workspace_id,
+        workspaceName: invite.workspace_name
+      });
+    }
+    
+    // Transfer workspace ownership to user (or create member record)
+    // For now, just transfer ownership
+    await db`
+      UPDATE workspaces SET user_id = ${currentUserId} WHERE id = ${invite.workspace_id}
+    `;
+    
+    // Mark invite as used
+    await db`
+      UPDATE workspace_invites SET used_at = NOW() WHERE id = ${invite.id}
+    `;
+    
+    // Get updated workspace with API key
+    const workspace = await db`
+      SELECT id, name, api_key, slug FROM workspaces WHERE id = ${invite.workspace_id}
+    `;
+    
+    return NextResponse.json({ 
+      success: true,
+      workspace: workspace[0]
+    });
+  }
+  
   // Workspace settings (get/update)
   if (path[0] === 'workspace' && path[1] === 'settings') {
     const session = await getServerSession(authOptions);
@@ -210,7 +403,18 @@ export async function GET(
     // UPDATE settings
     if (request.method === 'POST') {
       const body = await request.json();
-      const { name, alert_cost_threshold, alert_downtime_minutes, slack_webhook_url, alert_email } = body;
+      const { name, alert_cost_threshold, alert_downtime_minutes, slack_webhook_url, alert_email, action } = body;
+      
+      // Regenerate API key
+      if (action === 'regenerate_api_key') {
+        const newApiKey = 'pk_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+        
+        await db`
+          UPDATE workspaces SET api_key = ${newApiKey} WHERE id = ${parseInt(workspaceId)}
+        `;
+        
+        return NextResponse.json({ success: true, apiKey: newApiKey });
+      }
       
       // Ensure alert_email column exists
       await db`ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS alert_email TEXT`;
