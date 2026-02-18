@@ -351,34 +351,34 @@ function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: Dashbo
               <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
                 {[
                   {
-                    label: "Today's Cost",
-                    value: `$${latestReport?.costs?.today?.toFixed(2) || "0.00"}`,
-                    icon: "💰",
-                    color: "from-emerald-500/20 to-emerald-500/5",
+                    label: "Input Tokens",
+                    value: latestReport?.tokens ? (latestReport.tokens.input / 1000).toFixed(1) + 'K' : '0',
+                    icon: "📥",
+                    color: "from-blue-500/20 to-blue-500/5",
                   },
                   {
-                    label: "Uptime",
-                    value: data?.gatewayOnline ? "✅ Online" : "❌ Offline",
-                    icon: "🟢",
-                    color: data?.gatewayOnline ? "from-emerald-500/20 to-emerald-500/5" : "from-red-500/20 to-red-500/5",
+                    label: "Output Tokens",
+                    value: latestReport?.tokens ? (latestReport.tokens.output / 1000).toFixed(1) + 'K' : '0',
+                    icon: "📤",
+                    color: "from-violet-500/20 to-violet-500/5",
                   },
                   {
                     label: "Active Sessions",
                     value: latestReport?.sessions?.active || 0,
                     icon: "💬",
-                    color: "from-blue-500/20 to-blue-500/5",
+                    color: "from-emerald-500/20 to-emerald-500/5",
                   },
                   {
                     label: "Total Sessions",
                     value: latestReport?.sessions?.total || 0,
-                    icon: "📈",
-                    color: "from-violet-500/20 to-violet-500/5",
+                    icon: "📊",
+                    color: "from-amber-500/20 to-amber-500/5",
                   },
                   {
-                    label: "Monthly Cost",
-                    value: `$${latestReport?.costs?.month?.toFixed(2) || "0.00"}`,
-                    icon: "📅",
-                    color: "from-amber-500/20 to-amber-500/5",
+                    label: "Crons",
+                    value: `${latestReport?.crons?.enabled || 0}/${latestReport?.crons?.total || 0}`,
+                    icon: "⏰",
+                    color: "from-cyan-500/20 to-cyan-500/5",
                   },
                   {
                     label: "Errors (24h)",
@@ -580,9 +580,9 @@ function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: Dashbo
                 </div>
               </div>
               <div className="grid lg:grid-cols-2 gap-6">
-                {/* Cost Chart */}
+                {/* Sessions Chart */}
                 <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-5">
-                  <h3 className="font-semibold mb-4">💰 Cost ({timeRange})</h3>
+                  <h3 className="font-semibold mb-4">💬 Sessions ({timeRange})</h3>
                   <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={history}>
@@ -604,7 +604,7 @@ function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: Dashbo
                         />
                         <Line 
                           type="monotone" 
-                          dataKey="cost_today" 
+                          dataKey="sessions_active" 
                           stroke="#10b981" 
                           strokeWidth={2}
                           dot={false}
@@ -831,8 +831,8 @@ function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: Dashbo
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-semibold">${agent.cost24h.toFixed(2)}</div>
-                          <div className="text-xs text-zinc-500">{agent.sessions} sessions</div>
+                          <div className="font-semibold text-lg">{agent.sessions}</div>
+                          <div className="text-xs text-zinc-500">sessions today</div>
                         </div>
                       </div>
                     ))}
