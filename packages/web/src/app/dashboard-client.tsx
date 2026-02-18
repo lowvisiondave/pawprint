@@ -608,7 +608,7 @@ function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: Dashbo
                           fontSize={12}
                           tickLine={false}
                         />
-                        <YAxis stroke="#71717a" fontSize={12} tickLine={false} tickFormatter={(v) => `$${v}`} />
+                        <YAxis stroke="#71717a" fontSize={12} tickLine={false} />
                         <Tooltip
                           contentStyle={{ 
                             backgroundColor: "rgba(24,24,27,0.95)", 
@@ -629,147 +629,42 @@ function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: Dashbo
                   </div>
                 </div>
 
-                {/* Sessions Chart */}
-                <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-5">
-                  <h3 className="font-semibold mb-4">💬 Sessions ({timeRange})</h3>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={history}>
-                        <XAxis 
-                          dataKey="timestamp" 
-                          tickFormatter={formatTime}
-                          stroke="#71717a" 
-                          fontSize={12}
-                          tickLine={false}
-                        />
-                        <YAxis stroke="#71717a" fontSize={12} tickLine={false} />
-                        <Tooltip
-                          contentStyle={{ 
-                            backgroundColor: "rgba(24,24,27,0.95)", 
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: "12px",
-                            backdropFilter: "blur(10px)"
-                          }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="sessions_active" 
-                          stroke="#8b5cf6" 
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                {/* System Metrics Overview */}
+                {history.some(h => h.system_cpu_usage_percent !== null) && (
+                  <div className="backdrop-blur-xl bg-gradient-to-br from-orange-500/10 to-cyan-500/10 border border-orange-500/20 rounded-2xl p-5">
+                    <h3 className="font-semibold mb-4">📊 System Metrics ({timeRange})</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                          <span>CPU</span>
+                          <span>{history[0]?.system_cpu_usage_percent ?? 0}%</span>
+                        </div>
+                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-orange-500" style={{width: `${history[0]?.system_cpu_usage_percent ?? 0}%`}} />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                          <span>Memory</span>
+                          <span>{history[0]?.system_memory_used_percent ?? 0}%</span>
+                        </div>
+                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-cyan-500" style={{width: `${history[0]?.system_memory_used_percent ?? 0}%`}} />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-xs text-zinc-400 mb-1">
+                          <span>Disk</span>
+                          <span>{history[0]?.system_disk_used_percent ?? 0}%</span>
+                        </div>
+                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-purple-500" style={{width: `${history[0]?.system_disk_used_percent ?? 0}%`}} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
-
-              {/* System Metrics Charts */}
-              {history.some(h => h.system_cpu_usage_percent !== null) && (
-                <div className="grid lg:grid-cols-3 gap-6">
-                  {/* CPU Chart */}
-                  <div className="backdrop-blur-xl bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-2xl p-5">
-                    <h3 className="font-semibold mb-4">🖥️ CPU ({timeRange})</h3>
-                    <div className="h-32">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={history}>
-                          <XAxis 
-                            dataKey="timestamp" 
-                            tickFormatter={formatTime}
-                            stroke="#71717a" 
-                            fontSize={10}
-                            tickLine={false}
-                          />
-                          <YAxis stroke="#71717a" fontSize={10} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                          <Tooltip
-                            contentStyle={{ 
-                              backgroundColor: "rgba(24,24,27,0.95)", 
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              borderRadius: "8px",
-                            }}
-                            formatter={(v) => [`${v ?? 0}%`, 'CPU']}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="system_cpu_usage_percent" 
-                            stroke="#f97316" 
-                            strokeWidth={2}
-                            dot={false}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  {/* Memory Chart */}
-                  <div className="backdrop-blur-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-2xl p-5">
-                    <h3 className="font-semibold mb-4">🧠 Memory ({timeRange})</h3>
-                    <div className="h-32">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={history}>
-                          <XAxis 
-                            dataKey="timestamp" 
-                            tickFormatter={formatTime}
-                            stroke="#71717a" 
-                            fontSize={10}
-                            tickLine={false}
-                          />
-                          <YAxis stroke="#71717a" fontSize={10} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                          <Tooltip
-                            contentStyle={{ 
-                              backgroundColor: "rgba(24,24,27,0.95)", 
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              borderRadius: "8px",
-                            }}
-                            formatter={(v) => [`${v ?? 0}%`, 'Memory']}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="system_memory_used_percent" 
-                            stroke="#06b6d4" 
-                            strokeWidth={2}
-                            dot={false}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  {/* Disk Chart */}
-                  <div className="backdrop-blur-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-2xl p-5">
-                    <h3 className="font-semibold mb-4">💾 Disk ({timeRange})</h3>
-                    <div className="h-32">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={history}>
-                          <XAxis 
-                            dataKey="timestamp" 
-                            tickFormatter={formatTime}
-                            stroke="#71717a" 
-                            fontSize={10}
-                            tickLine={false}
-                          />
-                          <YAxis stroke="#71717a" fontSize={10} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                          <Tooltip
-                            contentStyle={{ 
-                              backgroundColor: "rgba(24,24,27,0.95)", 
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              borderRadius: "8px",
-                            }}
-                            formatter={(v) => [`${v ?? 0}%`, 'Disk']}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="system_disk_used_percent" 
-                            stroke="#a855f7" 
-                            strokeWidth={2}
-                            dot={false}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Token & Model Breakdown */}
               {(latestReport?.tokens || latestReport?.modelBreakdown) && (
