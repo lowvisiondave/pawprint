@@ -493,7 +493,7 @@ export async function GET(
         SELECT 
           COALESCE(system_hostname, 'unknown') as hostname,
           MAX(timestamp) as last_seen,
-          MAX(gateway_online) as is_online,
+          BOOL_OR(gateway_online) as is_online,
           SUM(COALESCE(cost_today, 0)) as cost_24h,
           SUM(COALESCE(sessions_active, 0)) as total_sessions
         FROM readings 
