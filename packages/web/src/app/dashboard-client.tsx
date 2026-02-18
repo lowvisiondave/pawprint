@@ -196,8 +196,9 @@ function LandingPage() {
 // Authenticated dashboard
 function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId: string }) {
   const { data: session } = useSession();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "alerts" | "settings" | "install">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "agents" | "alerts" | "settings" | "install">("dashboard");
   const [history, setHistory] = useState<HistoryPoint[]>([]);
+  const [agents, setAgents] = useState<Array<{hostname: string; lastSeen: string; isOnline: boolean; cost24h: number; sessions: number}>>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("24h");
 
@@ -209,6 +210,14 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
       .then(d => setHistory(d.history || []))
       .finally(() => setLoading(false));
   }, [workspaceId, timeRange]);
+
+  useEffect(() => {
+    if (activeTab === "agents") {
+      fetch(`${API_URL}/api/v1/agents?workspace_id=${workspaceId}`)
+        .then(r => r.json())
+        .then(d => setAgents(d.agents || []));
+    }
+  }, [activeTab, workspaceId]);
 
   const latestReport = data?.latestReport;
   const isOnline = data?.gatewayOnline;
@@ -254,6 +263,7 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
             <nav className="flex gap-1 overflow-x-auto">
               {[
                 { id: "dashboard", label: "Dashboard", icon: "📊" },
+                { id: "agents", label: "Agents", icon: "🖥️" },
                 { id: "alerts", label: "Alerts", icon: "🔔" },
                 { id: "settings", label: "Settings", icon: "⚙️" },
                 { id: "install", label: "Install", icon: "📥" },
@@ -499,6 +509,44 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                   Last updated: {new Date(data.reportedAt).toLocaleString()}
                 </p>
               )}
+            </div>
+          )}
+
+          {activeTab === "agents" && (
+            <div className="space-y-6">
+              <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
+                <h2 className="text-xl font-bold mb-2">🖥️ Agents</h2>
+                <p className="text-zinc-400 mb-6">Monitor multiple agents in your workspace</p>
+                
+                {agents.length === 0 ? (
+                  <div className="text-center py-8 text-zinc-500">
+                    No agents reporting yet. Install the reporter to see agents here.
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {agents.map((agent) => (
+                      <div 
+                        key={agent.hostname}
+                        className="backdrop-blur-xl bg-zinc-900/50 border border-white/10 rounded-xl p-4 flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-3 h-3 rounded-full ${agent.isOnline ? "bg-emerald-400 animate-pulse" : "bg-zinc-500"}`} />
+                          <div>
+                            <div className="font-mono font-semibold">{agent.hostname}</div>
+                            <div className="text-xs text-zinc-500">
+                              Last seen: {agent.lastSeen ? new Date(agent.lastSeen).toLocaleString() : 'Never'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold">${agent.cost24h.toFixed(2)}</div>
+                          <div className="text-xs text-zinc-500">{agent.sessions} sessions</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

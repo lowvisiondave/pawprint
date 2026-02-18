@@ -330,6 +330,34 @@ export async function GET(
         }))
       });
     }
+    
+    // Get agents (grouped by hostname)
+    if (path[0] === 'agents') {
+      const result = await db`
+        SELECT 
+          system_hostname as hostname,
+          MAX(timestamp) as last_seen,
+          MAX(gateway_online) as is_online,
+          SUM(cost_today) as cost_24h,
+          SUM(sessions_active) as total_sessions
+        FROM readings 
+        WHERE workspace_id = ${workspaceId}
+        AND system_hostname IS NOT NULL
+        AND timestamp > NOW() - INTERVAL '24 hours'
+        GROUP BY system_hostname
+        ORDER BY last_seen DESC;
+      `;
+      
+      return NextResponse.json({ 
+        agents: result.map(row => ({
+          hostname: row.hostname,
+          lastSeen: row.last_seen,
+          isOnline: row.is_online,
+          cost24h: Number(row.cost_24h || 0),
+          sessions: Number(row.total_sessions || 0),
+        }))
+      });
+    }
   }
   
   return NextResponse.json({ error: 'Not found' }, { status: 404 });
