@@ -552,11 +552,73 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
 
           {activeTab === "alerts" && (
             <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6 max-w-2xl">
-              <h2 className="text-xl font-bold mb-6">🔔 Alert Settings</h2>
-              <p className="text-zinc-400 mb-6">Configure alerts for cost thresholds and downtime notifications.</p>
-              <div className="bg-zinc-900/50 rounded-xl p-4 text-center">
-                <span className="text-zinc-500">Alert configuration coming soon...</span>
-              </div>
+              <h2 className="text-xl font-bold mb-2">🔔 Alert Settings</h2>
+              <p className="text-zinc-400 mb-6">Get notified when costs spike or agents go offline.</p>
+              
+              <form className="space-y-4" onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const formData = new FormData(form);
+                fetch(`${API_URL}/api/v1/workspace/settings?id=${workspaceId}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    alert_cost_threshold: formData.get('alert_cost_threshold') || null,
+                    alert_downtime_minutes: formData.get('alert_downtime_minutes') || 5,
+                    slack_webhook_url: formData.get('slack_webhook_url') || null,
+                    alert_email: formData.get('alert_email') || null,
+                  }),
+                }).then(() => alert('Settings saved!'));
+              }}>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Cost Alert Threshold ($)</label>
+                  <input 
+                    name="alert_cost_threshold"
+                    type="number" 
+                    step="0.01"
+                    placeholder="10.00"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Downtime Alert (minutes)</label>
+                  <input 
+                    name="alert_downtime_minutes"
+                    type="number"
+                    defaultValue={5}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Slack Webhook URL</label>
+                  <input 
+                    name="slack_webhook_url"
+                    type="url"
+                    placeholder="https://hooks.slack.com/services/..."
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Email for Alerts</label>
+                  <input 
+                    name="alert_email"
+                    type="email"
+                    placeholder="you@example.com"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                  />
+                  <p className="text-xs text-zinc-500 mt-1">Coming soon - email alerts require Resend setup</p>
+                </div>
+                
+                <button 
+                  type="submit"
+                  className="w-full py-3 bg-indigo-500 hover:bg-indigo-600 rounded-lg font-semibold transition-colors"
+                >
+                  Save Settings
+                </button>
+              </form>
             </div>
           )}
 

@@ -201,7 +201,7 @@ export async function GET(
     // GET settings
     if (request.method === 'GET') {
       const settings = await db`
-        SELECT id, name, api_key, alert_cost_threshold, alert_downtime_minutes, slack_webhook_url
+        SELECT id, name, api_key, alert_cost_threshold, alert_downtime_minutes, slack_webhook_url, alert_email
         FROM workspaces WHERE id = ${parseInt(workspaceId)}
       `;
       return NextResponse.json({ workspace: settings[0] });
@@ -210,14 +210,18 @@ export async function GET(
     // UPDATE settings
     if (request.method === 'POST') {
       const body = await request.json();
-      const { name, alert_cost_threshold, alert_downtime_minutes, slack_webhook_url } = body;
+      const { name, alert_cost_threshold, alert_downtime_minutes, slack_webhook_url, alert_email } = body;
+      
+      // Ensure alert_email column exists
+      await db`ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS alert_email TEXT`;
       
       await db`
         UPDATE workspaces SET
           name = COALESCE(${name}, name),
           alert_cost_threshold = ${alert_cost_threshold ?? null},
           alert_downtime_minutes = ${alert_downtime_minutes ?? 5},
-          slack_webhook_url = ${slack_webhook_url ?? null}
+          slack_webhook_url = ${slack_webhook_url ?? null},
+          alert_email = ${alert_email ?? null}
         WHERE id = ${parseInt(workspaceId)}
       `;
       
