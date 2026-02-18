@@ -639,7 +639,7 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                               border: "1px solid rgba(255,255,255,0.1)",
                               borderRadius: "8px",
                             }}
-                            formatter={(v: number) => [`${v}%`, 'CPU']}
+                            formatter={(v) => [`${v ?? 0}%`, 'CPU']}
                           />
                           <Line 
                             type="monotone" 
@@ -673,7 +673,7 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                               border: "1px solid rgba(255,255,255,0.1)",
                               borderRadius: "8px",
                             }}
-                            formatter={(v: number) => [`${v}%`, 'Memory']}
+                            formatter={(v) => [`${v ?? 0}%`, 'Memory']}
                           />
                           <Line 
                             type="monotone" 
@@ -707,7 +707,7 @@ function AuthDashboard({ data, workspaceId }: { data: DashboardData; workspaceId
                               border: "1px solid rgba(255,255,255,0.1)",
                               borderRadius: "8px",
                             }}
-                            formatter={(v: number) => [`${v}%`, 'Disk']}
+                            formatter={(v) => [`${v ?? 0}%`, 'Disk']}
                           />
                           <Line 
                             type="monotone" 
