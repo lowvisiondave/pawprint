@@ -582,6 +582,16 @@ export async function GET(
       `;
       if (userWorkspaces.length > 0) {
         workspaceId = userWorkspaces[0].id;
+      } else {
+        // Auto-create a default workspace for new users
+        const newApiKey = 'pk_' + randomUUID();
+        const result = await db`
+          INSERT INTO workspaces (user_id, name, api_key)
+          VALUES (${userId}, 'My Agent', ${newApiKey})
+          RETURNING id
+        `;
+        workspaceId = result[0].id;
+        console.log('Auto-created workspace for user:', userId);
       }
     }
     
