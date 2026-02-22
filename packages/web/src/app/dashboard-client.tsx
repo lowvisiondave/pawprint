@@ -178,8 +178,9 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
             { id: 'dashboard', label: 'Dashboard' },
             { id: 'agents', label: `Agents (${initialAgents.length})` },
             { id: 'errors', label: 'Errors' },
+            { id: 'settings', label: 'Settings' },
           ].map(tab => (
-            <Link key={tab.id} href={`?tab=${tab.id}`}
+            <Link key={tab.id} href={`?tab=${tab.id}&workspace_id=${workspaceId}`}
               className={`text-sm font-medium pb-4 border-b-2 transition-colors ${
                 activeTab === tab.id ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'
               }`}>

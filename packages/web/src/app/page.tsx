@@ -137,13 +137,21 @@ async function getAgentsData(workspaceId: string) {
   }));
 }
 
+import Settings from "../settings/page";
+
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ workspace_id?: string }>;
+  searchParams: Promise<{ workspace_id?: string; tab?: string }>;
 }) {
   const params = await searchParams;
   const workspaceId = params.workspace_id || "1";
+  const tab = params.tab || "dashboard";
+  
+  // Render settings page if tab=settings
+  if (tab === "settings") {
+    return <Settings workspaceId={workspaceId} />;
+  }
   
   const [data, agents] = await Promise.all([
     getDashboardData(workspaceId),
