@@ -433,6 +433,30 @@ export async function GET(
     });
   }
   
+  // List user's workspaces
+  if (path[0] === 'workspace' && request.method === 'GET') {
+    const url = new URL(request.url);
+    if (url.searchParams.get('list') === 'true') {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.email) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      
+      const users = await db`
+        SELECT id FROM users WHERE email = ${session.user.email}
+      `;
+      if (users.length === 0) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      
+      const workspaces = await db`
+        SELECT id, name, slug FROM workspaces WHERE user_id = ${users[0].id} ORDER BY name
+      `;
+      
+      return NextResponse.json({ workspaces });
+    }
+  }
+  
   // Workspace settings (get/update)
   if (path[0] === 'workspace' && path[1] === 'settings') {
     const session = await getServerSession(authOptions);

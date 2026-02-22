@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -132,11 +132,13 @@ function LandingPage() {
 // Authenticated Dashboard
 function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: DashboardData; agents: Agent[]; workspaceId: string }) {
   const { data: session } = useSession();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") || "dashboard";
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [hours, setHours] = useState(24);
+  const [workspaces, setWorkspaces] = useState<{id: number; name: string}[]>([]);
 
   useEffect(() => {
     setLoading(true);
@@ -145,6 +147,18 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
       .then(d => setHistory(d.history || []))
       .finally(() => setLoading(false));
   }, [workspaceId, hours]);
+
+  // Fetch user's workspaces for switcher
+  useEffect(() => {
+    fetch('/api/v1/workspace?list=true')
+      .then(r => r.json())
+      .then(d => {
+        if (d.workspaces) {
+          setWorkspaces(d.workspaces);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const latest = data?.latestReport;
   const isOnline = data?.gatewayOnline;
@@ -168,6 +182,20 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
             </span>
           </div>
           <div className="flex items-center gap-4">
+            {workspaces.length > 1 && (
+              <select
+                value={workspaceId}
+                onChange={(e) => {
+                  const newId = e.target.value;
+                  router.push(`?tab=${activeTab}&workspace_id=${newId}`);
+                }}
+                className="bg-zinc-900 border border-zinc-800 text-sm rounded px-2 py-1 text-white"
+              >
+                {workspaces.map(ws => (
+                  <option key={ws.id} value={ws.id}>{ws.name}</option>
+                ))}
+              </select>
+            )}
             <span className="text-sm text-zinc-500">{session?.user?.name}</span>
             <button onClick={() => signOut()} className="text-sm text-zinc-500 hover:text-white">Sign Out</button>
           </div>
