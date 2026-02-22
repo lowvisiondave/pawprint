@@ -22,7 +22,7 @@ async function getDashboardData(workspaceId: string) {
     SELECT 
       timestamp, gateway_online, gateway_uptime,
       sessions_active, sessions_total,
-      crons_enabled, crons_total,
+      crons_enabled, crons_total, cron_jobs,
       cost_today, cost_month,
       tokens_input, tokens_output,
       system_hostname, system_platform, system_arch, system_cpu_count,
@@ -45,7 +45,7 @@ async function getDashboardData(workspaceId: string) {
       timestamp: row.timestamp,
       gateway: { online: row.gateway_online, uptime: row.gateway_uptime },
       sessions: { active: row.sessions_active, total: row.sessions_total },
-      crons: { enabled: row.crons_enabled, total: row.crons_total },
+      crons: { enabled: row.crons_enabled, total: row.crons_total, jobs: row.cron_jobs || [] },
       costs: { today: Number(row.cost_today), month: Number(row.cost_month) },
       tokens: row.tokens_output ? { 
         input: Number(row.tokens_input || 0), 

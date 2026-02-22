@@ -72,6 +72,12 @@ async function ensureTables() {
     `;
   } catch (e) { /* column may exist */ }
   
+  try {
+    await db`
+      ALTER TABLE readings ADD COLUMN IF NOT EXISTS cron_jobs JSONB;
+    `;
+  } catch (e) { /* column may exist */ }
+  
   await db`
     ALTER TABLE readings ADD COLUMN IF NOT EXISTS last_error_message TEXT;
   `;
@@ -125,7 +131,7 @@ interface ReportPayload {
   timestamp: string;
   gateway: { online: boolean; uptime: number };
   sessions: { active: number; total: number };
-  crons: { enabled: number; total: number };
+  crons: { enabled: number; total: number; jobs?: any[] };
   costs: { today: number; month: number };
   tokens?: { input: number; output: number };
   modelBreakdown?: Record<string, number>;
@@ -629,7 +635,7 @@ export async function GET(
         SELECT 
           timestamp, gateway_online, gateway_uptime,
           sessions_active, sessions_total,
-          crons_enabled, crons_total,
+          crons_enabled, crons_total, cron_jobs,
           cost_today, cost_month,
           tokens_input, tokens_output, model_breakdown,
           system_hostname, system_platform, system_arch, system_cpu_count, 
@@ -660,7 +666,7 @@ export async function GET(
           timestamp: row.timestamp,
           gateway: { online: row.gateway_online, uptime: row.gateway_uptime },
           sessions: { active: row.sessions_active, total: row.sessions_total },
-          crons: { enabled: row.crons_enabled, total: row.crons_total },
+          crons: { enabled: row.crons_enabled, total: row.crons_total, jobs: row.cron_jobs || [] },
           costs: { today: Number(row.cost_today), month: Number(row.cost_month) },
           tokens: row.tokens_output ? { 
             input: Number(row.tokens_input || 0), 
@@ -838,12 +844,14 @@ export async function POST(
       const processesStr = p.processes ? JSON.stringify(p.processes) : null;
       const customStr = p.custom ? JSON.stringify(p.custom) : null;
       
+      const cronJobsStr = p.crons?.jobs ? JSON.stringify(p.crons.jobs) : null;
+      
       await db`
         INSERT INTO readings (
           workspace_id,
           timestamp, gateway_online, gateway_uptime,
           sessions_active, sessions_total,
-          crons_enabled, crons_total,
+          crons_enabled, crons_total, cron_jobs,
           cost_today, cost_month,
           tokens_input, tokens_output, model_breakdown,
           system_hostname, system_platform, system_arch, system_cpu_count, system_cpu_usage_percent,
@@ -861,6 +869,7 @@ export async function POST(
           ${p.sessions?.total ?? null},
           ${p.crons?.enabled ?? null},
           ${p.crons?.total ?? null},
+          ${cronJobsStr},
           ${p.costs?.today ?? null},
           ${p.costs?.month ?? null},
           ${p.tokens?.input ?? null},

@@ -131,7 +131,7 @@ interface ReportPayload {
   timestamp: string;
   gateway: { online: boolean; uptime: number };
   sessions: { active: number; total: number };
-  crons: { enabled: number; total: number };
+  crons: { enabled: number; total: number; jobs?: CronJob[] };
   costs: { today: number; month: number };
   tokens?: { input: number; output: number };
   modelBreakdown?: Record<string, number>;
@@ -382,10 +382,13 @@ function getCronJobs(openclawDir?: string): CronJob[] {
 function getOpenClawMetrics(openclawDir: string): Partial<ReportPayload> {
   const result: Partial<ReportPayload> = {
     sessions: { active: 0, total: 0 },
-    crons: { enabled: 0, total: 0 },
+    crons: { enabled: 0, total: 0, jobs: [] },
     costs: { today: 0, month: 0 },
     tokens: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    errors: { last24h: 0 },
   };
+  
+  const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
   
   try {
     // Sessions - read from sessions.json
@@ -411,6 +414,7 @@ function getOpenClawMetrics(openclawDir: string): Partial<ReportPayload> {
           try {
             const sessionContent = readFileSync(session.sessionFile, 'utf-8');
             const lines = sessionContent.trim().split('\n');
+            let latestError: { message: string; timestamp: string } | null = null;
             
             for (const line of lines) {
               try {
@@ -427,7 +431,22 @@ function getOpenClawMetrics(openclawDir: string): Partial<ReportPayload> {
                     : JSON.stringify(entry.content);
                   result.tokens!.inputTokens += Math.ceil(content.length / 4);
                 }
+                // Track errors
+                const entryTime = entry.timestamp ? new Date(entry.timestamp).getTime() : 0;
+                if (entry.isError === true && entryTime > dayAgo) {
+                  result.errors!.last24h++;
+                  const errMsg = entry.message?.details?.error || entry.message?.content || 'Unknown error';
+                  if (!latestError || entryTime > new Date(latestError.timestamp).getTime()) {
+                    latestError = { 
+                      message: String(errMsg).substring(0, 200), 
+                      timestamp: entry.timestamp 
+                    };
+                  }
+                }
               } catch {}
+            }
+            if (latestError) {
+              result.errors!.lastError = latestError;
             }
           } catch {}
         }
@@ -556,9 +575,10 @@ async function main() {
     timestamp: new Date().toISOString(),
     gateway: { online: true, uptime: 0 },
     sessions: { active: 0, total: 0 },
-    crons: { enabled: 0, total: 0 },
+    crons: { enabled: 0, total: 0, jobs: [] },
     costs: { today: 0, month: 0 },
     tokens: { input: 0, output: 0 },
+    errors: { last24h: 0 },
   };
   
   // System metrics
@@ -591,10 +611,10 @@ async function main() {
   if (config.crons) {
     console.log('\n⏰ Checking cron jobs...');
     const openclawDir = join(homedir(), '.openclaw');
-    const crons = getCronJobs(openclawDir);
-    const enabled = crons.filter(c => c.lastStatus !== undefined).length;
-    payload.crons = { enabled, total: crons.length };
-    console.log(`   ${crons.length} cron jobs found (${enabled} enabled)`);
+    const cronJobs = getCronJobs(openclawDir);
+    const enabled = cronJobs.filter(c => c.lastStatus !== undefined).length;
+    payload.crons = { enabled, total: cronJobs.length, jobs: cronJobs };
+    console.log(`   ${cronJobs.length} cron jobs found (${enabled} enabled)`);
   }
   
   // Custom metrics
@@ -622,6 +642,9 @@ async function main() {
     }
     if (ocMetrics.gateway) {
       payload.gateway = ocMetrics.gateway;
+    }
+    if (ocMetrics.errors) {
+      payload.errors = ocMetrics.errors;
     }
     console.log(`   Sessions: ${payload.sessions.active} active, ${payload.sessions.total} total`);
     console.log(`   Crons: ${payload.crons.enabled} enabled`);

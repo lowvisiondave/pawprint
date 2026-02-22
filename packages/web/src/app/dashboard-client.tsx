@@ -11,9 +11,13 @@ interface DashboardData {
     timestamp: string;
     gateway: { online: boolean; uptime: number };
     sessions: { active: number; total: number };
-    crons: { enabled: number; total: number };
+    crons: { enabled: number; total: number; jobs?: any[] };
     costs: { today: number; month: number };
     tokens?: { input: number; output: number };
+    errors?: {
+      last24h: number;
+      lastError?: { message: string; timestamp: string };
+    };
     system?: {
       hostname?: string;
       platform?: string;
@@ -132,13 +136,15 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
   const activeTab = searchParams.get("tab") || "dashboard";
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hours, setHours] = useState(24);
 
   useEffect(() => {
-    fetch(`/api/v1/history?workspace_id=${workspaceId}&hours=24`)
+    setLoading(true);
+    fetch(`/api/v1/history?workspace_id=${workspaceId}&hours=${hours}`)
       .then(r => r.json())
       .then(d => setHistory(d.history || []))
       .finally(() => setLoading(false));
-  }, [workspaceId]);
+  }, [workspaceId, hours]);
 
   const latest = data?.latestReport;
   const isOnline = data?.gatewayOnline;
@@ -171,6 +177,7 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
           {[
             { id: 'dashboard', label: 'Dashboard' },
             { id: 'agents', label: `Agents (${initialAgents.length})` },
+            { id: 'errors', label: 'Errors' },
           ].map(tab => (
             <Link key={tab.id} href={`?tab=${tab.id}`}
               className={`text-sm font-medium pb-4 border-b-2 transition-colors ${
@@ -189,11 +196,15 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
               </div>
             ) : latest ? (
               <>
-                <div className="grid md:grid-cols-4 gap-4 mb-8">
+                <div className="grid md:grid-cols-5 gap-4 mb-8">
                   <StatCard label="Active Sessions" value={latest.sessions.active.toString()} sublabel="now" />
                   <StatCard label="Total Sessions" value={latest.sessions.total.toString()} sublabel="all time" />
                   <StatCard label="Uptime" value={formatUptime(latest.gateway.uptime)} />
                   <StatCard label="Cost Today" value={`$${latest.costs.today.toFixed(4)}`} />
+                  <div className={`p-4 border rounded-lg ${(latest.errors?.last24h ?? 0) > 0 ? 'border-red-900 bg-red-900/10' : 'border-zinc-900'}`}>
+                    <div className="text-xs text-zinc-500 mb-1">Errors (24h)</div>
+                    <div className={`text-2xl font-medium ${(latest.errors?.last24h ?? 0) > 0 ? 'text-red-400' : ''}`}>{latest.errors?.last24h || 0}</div>
+                  </div>
                 </div>
 
                 {latest.system && (
@@ -201,6 +212,35 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
                     <StatCard label="CPU" value={`${latest.system.cpuUsagePercent || 0}%`} sublabel={`${latest.system.cpuCount} cores`} />
                     <StatCard label="Memory" value={`${latest.system.memoryUsedPercent || 0}%`} sublabel={`${latest.system.memoryFreeMb}MB free`} />
                     <StatCard label="Disk" value={`${latest.system.diskUsedPercent || 0}%`} sublabel={`${latest.system.diskFreeGb}GB free`} />
+                  </div>
+                )}
+
+                {latest.crons?.jobs && latest.crons.jobs.length > 0 && (
+                  <div className="mb-8">
+                    <h2 className="text-lg font-semibold mb-4">Cron Jobs</h2>
+                    <div className="space-y-2">
+                      {latest.crons.jobs.map((job: any, idx: number) => (
+                        <div key={idx} className="flex items-center justify-between p-3 border border-zinc-900 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <span className={`w-2 h-2 rounded-full ${
+                              job.lastStatus === 'success' ? 'bg-emerald-500' : 
+                              job.lastStatus === 'failed' ? 'bg-red-500' : 
+                              job.lastStatus === 'running' ? 'bg-yellow-500' : 'bg-zinc-600'
+                            }`} />
+                            <span className="font-medium">{job.name}</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-zinc-400">
+                            <span>{job.schedule}</span>
+                            {job.lastRun && (
+                              <span>{new Date(job.lastRun).toLocaleString()}</span>
+                            )}
+                            {job.lastDuration && (
+                              <span>{Math.round(job.lastDuration / 1000)}s</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -217,9 +257,27 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
                   </div>
                 )}
 
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">History</h2>
+                  <div className="flex gap-1 bg-zinc-900 rounded-lg p-1">
+                    <button
+                      onClick={() => setHours(24)}
+                      className={`px-3 py-1 text-sm rounded ${hours === 24 ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'}`}
+                    >
+                      24h
+                    </button>
+                    <button
+                      onClick={() => setHours(168)}
+                      className={`px-3 py-1 text-sm rounded ${hours === 168 ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'}`}
+                    >
+                      7d
+                    </button>
+                  </div>
+                </div>
+
                 {history.length > 0 && (
                   <div className="border border-zinc-900 rounded-lg p-6">
-                    <h3 className="text-sm font-medium text-zinc-400 mb-4">Sessions (24h)</h3>
+                    <h3 className="text-sm font-medium text-zinc-400 mb-4">Sessions ({hours}h)</h3>
                     <div className="h-48">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={history}>
@@ -290,6 +348,46 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </main>
+        )}
+
+        {activeTab === 'errors' && (
+          <main className="py-8">
+            <h2 className="text-xl font-semibold mb-6">Error Log</h2>
+            
+            {data.latestReport?.errors ? (
+              <div className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="p-4 border border-zinc-900 rounded-lg">
+                    <div className="text-xs text-zinc-500 mb-1">Errors (24h)</div>
+                    <div className="text-3xl font-medium text-red-400">{data.latestReport?.errors?.last24h || 0}</div>
+                  </div>
+                  {data.latestReport?.errors?.lastError && (
+                    <div className="p-4 border border-zinc-900 rounded-lg">
+                      <div className="text-xs text-zinc-500 mb-1">Last Error</div>
+                      <div className="text-sm text-red-300">{data.latestReport?.errors?.lastError.message}</div>
+                      <div className="text-xs text-zinc-600 mt-1">
+                        {data.latestReport?.errors?.lastError.timestamp ? new Date(data.latestReport?.errors?.lastError.timestamp).toLocaleString() : ''}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {(data.latestReport?.errors?.last24h ?? 0) > 0 && (
+                  <div className="mt-6 p-4 border border-red-900/50 bg-red-900/10 rounded-lg">
+                    <h3 className="text-sm font-medium text-red-400 mb-2">⚠️ Action Needed</h3>
+                    <p className="text-sm text-zinc-400">
+                      {data.latestReport?.errors?.last24h} errors detected in the last 24 hours. 
+                      Check the session logs for details.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-zinc-500 border border-zinc-900 rounded-lg">
+                No error tracking data available.
               </div>
             )}
           </main>
