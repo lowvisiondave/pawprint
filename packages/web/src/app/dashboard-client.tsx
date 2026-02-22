@@ -308,7 +308,11 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
             
             {initialAgents.length === 0 ? (
               <div className="text-center py-16 text-zinc-500 border border-zinc-900 rounded-lg">
-                No agents reporting yet.
+                <p className="mb-2">No agents reporting yet.</p>
+                <p className="text-sm">Install the reporter on your machines to start monitoring.</p>
+                <code className="block mt-4 text-xs bg-zinc-900 p-3 rounded text-left">
+                  curl -fsSL https://pawprint.dev/install.sh | bash -s YOUR_API_KEY
+                </code>
               </div>
             ) : (
               <div className="space-y-4">
