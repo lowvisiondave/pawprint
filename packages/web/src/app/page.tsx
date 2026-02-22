@@ -74,7 +74,17 @@ async function getDashboardData(workspaceId: string) {
 
 async function getAgentsData(workspaceId: string) {
   if (!process.env.DATABASE_URL) {
-    return [];
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+    try {
+      const res = await fetch(`${API_URL}/api/v1/agents?workspace_id=${workspaceId}`, {
+        next: { revalidate: 30 }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.agents || [];
+    } catch {
+      return [];
+    }
   }
   
   const db = neon(process.env.DATABASE_URL);
