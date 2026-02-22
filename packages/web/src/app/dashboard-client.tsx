@@ -201,7 +201,15 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
                   <StatCard label="Active Sessions" value={latest.sessions.active.toString()} sublabel="now" />
                   <StatCard label="Total Sessions" value={latest.sessions.total.toString()} sublabel="all time" />
                   <StatCard label="Uptime" value={formatUptime(latest.gateway.uptime)} />
-                  <StatCard label="Cost Today" value={`$${latest.costs.today.toFixed(4)}`} />
+                  <div className="p-4 border border-zinc-900 rounded-lg">
+                    <div className="text-xs text-zinc-500 mb-1">Cost Today</div>
+                    <div className="text-2xl font-medium">${latest.costs.today.toFixed(4)}</div>
+                    {latest.costs.today > 0 && (
+                      <div className="text-xs text-zinc-500 mt-1">
+                        ~${(latest.costs.today * 30).toFixed(2)}/mo projected
+                      </div>
+                    )}
+                  </div>
                   <div className={`p-4 border rounded-lg ${(latest.errors?.last24h ?? 0) > 0 ? 'border-red-900 bg-red-900/10' : 'border-zinc-900'}`}>
                     <div className="text-xs text-zinc-500 mb-1">Errors (24h)</div>
                     <div className={`text-2xl font-medium ${(latest.errors?.last24h ?? 0) > 0 ? 'text-red-400' : ''}`}>{latest.errors?.last24h || 0}</div>
@@ -277,19 +285,35 @@ function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: Das
                 </div>
 
                 {history.length > 0 && (
-                  <div className="border border-zinc-900 rounded-lg p-6">
-                    <h3 className="text-sm font-medium text-zinc-400 mb-4">Sessions ({hours}h)</h3>
-                    <div className="h-48">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={history}>
-                          <XAxis dataKey="timestamp" tickFormatter={(t) => new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} stroke="#52525b" fontSize={12} />
-                          <YAxis stroke="#52525b" fontSize={12} />
-                          <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #27272a' }} labelFormatter={(t) => new Date(t).toLocaleString()} />
-                          <Line type="monotone" dataKey="sessions_active" stroke="#fff" strokeWidth={2} dot={false} />
-                        </LineChart>
-                      </ResponsiveContainer>
+                  <>
+                    <div className="border border-zinc-900 rounded-lg p-6 mb-6">
+                      <h3 className="text-sm font-medium text-zinc-400 mb-4">Sessions ({hours}h)</h3>
+                      <div className="h-48">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={history}>
+                            <XAxis dataKey="timestamp" tickFormatter={(t) => new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} stroke="#52525b" fontSize={12} />
+                            <YAxis stroke="#52525b" fontSize={12} />
+                            <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #27272a' }} labelFormatter={(t) => new Date(t).toLocaleString()} />
+                            <Line type="monotone" dataKey="sessions_active" stroke="#fff" strokeWidth={2} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
-                  </div>
+                    
+                    <div className="border border-zinc-900 rounded-lg p-6">
+                      <h3 className="text-sm font-medium text-zinc-400 mb-4">Cost ({hours}h)</h3>
+                      <div className="h-48">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={history}>
+                            <XAxis dataKey="timestamp" tickFormatter={(t) => new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} stroke="#52525b" fontSize={12} />
+                            <YAxis stroke="#52525b" fontSize={12} tickFormatter={(v) => `$${v}`} />
+                            <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #27272a' }} labelFormatter={(t) => new Date(t).toLocaleString()} formatter={(v: number) => [`$${v.toFixed(4)}`, 'Cost']} />
+                            <Line type="monotone" dataKey="cost_today" stroke="#22c55e" strokeWidth={2} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <p className="text-xs text-zinc-600 mt-6">
