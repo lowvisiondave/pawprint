@@ -18,6 +18,11 @@ interface StatusData {
     memoryUsedPercent: number;
     diskUsedPercent: number;
   };
+  uptime?: {
+    day: number;
+    week: number;
+    month: number;
+  };
   error?: string;
 }
 
@@ -72,6 +77,31 @@ function StatusClient({ data, slug }: { data: StatusData | null; slug: string })
             {isOnline ? 'Online' : 'Offline'}
           </span>
         </div>
+
+        {data.uptime && (
+          <div className="mb-8">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="p-4 border border-zinc-900 rounded-lg text-center">
+                <div className="text-xs text-zinc-500 mb-1">24h</div>
+                <div className={`text-2xl font-bold ${data.uptime.day >= 99 ? 'text-emerald-400' : data.uptime.day >= 95 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {data.uptime.day}%
+                </div>
+              </div>
+              <div className="p-4 border border-zinc-900 rounded-lg text-center">
+                <div className="text-xs text-zinc-500 mb-1">7 days</div>
+                <div className={`text-2xl font-bold ${data.uptime.week >= 99 ? 'text-emerald-400' : data.uptime.week >= 95 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {data.uptime.week}%
+                </div>
+              </div>
+              <div className="p-4 border border-zinc-900 rounded-lg text-center">
+                <div className="text-xs text-zinc-500 mb-1">30 days</div>
+                <div className={`text-2xl font-bold ${data.uptime.month >= 99 ? 'text-emerald-400' : data.uptime.month >= 95 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {data.uptime.month}%
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="text-center mb-12">
           <div className="text-5xl mb-4">🐾</div>

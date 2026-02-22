@@ -1,7 +1,17 @@
 import StatusClient from "./status-client";
 import { neon } from "@neondatabase/serverless";
 
-async function getStatus(slug: string): Promise<{ error?: string; workspace?: { name: string; slug: string }; status?: string; lastCheck?: string; sessions?: { active: number; total: number }; system?: { hostname: string; platform: string; cpuUsagePercent: number; memoryUsedPercent: number; diskUsedPercent: number } }> {
+interface StatusData {
+  error?: string;
+  workspace?: { name: string; slug: string };
+  status?: string;
+  lastCheck?: string;
+  sessions?: { active: number; total: number };
+  system?: { hostname: string; platform: string; cpuUsagePercent: number; memoryUsedPercent: number; diskUsedPercent: number };
+  uptime?: { day: number; week: number; month: number };
+}
+
+async function getStatus(slug: string): Promise<StatusData> {
   if (!process.env.DATABASE_URL) {
     return { error: "Database not configured" };
   }
@@ -51,6 +61,37 @@ async function getStatus(slug: string): Promise<{ error?: string; workspace?: { 
   }
   
   const r = latest[0];
+  
+  // Calculate uptime for different periods
+  const now = new Date();
+  const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  
+  // Get readings for uptime calculation
+  const dayReadings = await db`
+    SELECT COUNT(*) as total, SUM(CASE WHEN gateway_online THEN 1 ELSE 0 END) as online
+    FROM readings 
+    WHERE workspace_id = ${workspace.id} AND timestamp > ${dayAgo.toISOString()}
+  `;
+  
+  const weekReadings = await db`
+    SELECT COUNT(*) as total, SUM(CASE WHEN gateway_online THEN 1 ELSE 0 END) as online
+    FROM readings 
+    WHERE workspace_id = ${workspace.id} AND timestamp > ${weekAgo.toISOString()}
+  `;
+  
+  const monthReadings = await db`
+    SELECT COUNT(*) as total, SUM(CASE WHEN gateway_online THEN 1 ELSE 0 END) as online
+    FROM readings 
+    WHERE workspace_id = ${workspace.id} AND timestamp > ${monthAgo.toISOString()}
+  `;
+  
+  const calcUptime = (row: any) => {
+    if (!row || !row.total || row.total === 0) return null;
+    return Math.round((row.online / row.total) * 100);
+  };
+  
   return {
     workspace: { name: workspace.name, slug: workspace.slug },
     status: r.gateway_online ? "online" : "offline",
@@ -63,6 +104,11 @@ async function getStatus(slug: string): Promise<{ error?: string; workspace?: { 
       memoryUsedPercent: r.system_memory_used_percent,
       diskUsedPercent: r.system_disk_used_percent,
     } : undefined,
+    uptime: {
+      day: calcUptime(dayReadings[0]) || 0,
+      week: calcUptime(weekReadings[0]) || 0,
+      month: calcUptime(monthReadings[0]) || 0,
+    },
   };
 }
 
