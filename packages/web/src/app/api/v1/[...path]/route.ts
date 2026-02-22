@@ -486,6 +486,9 @@ export async function GET(
       // Ensure alert_email column exists
       await db`ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS alert_email TEXT`;
       
+      // Ensure is_public column exists (default true for backwards compatibility)
+      await db`ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT true`;
+      
       await db`
         UPDATE workspaces SET
           name = COALESCE(${name}, name),
@@ -596,7 +599,19 @@ export async function GET(
     }
     
     if (!workspaceId) {
-      return NextResponse.json({ error: 'Workspace required' }, { status: 400 });
+      // For dev mode, try to use workspace 1
+      const devWorkspace = await db`SELECT id FROM workspaces ORDER BY id LIMIT 1`;
+      if (devWorkspace.length > 0) {
+        workspaceId = devWorkspace[0].id;
+      } else {
+        // Return empty state instead of error
+        return NextResponse.json({
+          latestReport: null,
+          reportedAt: null,
+          gatewayOnline: false,
+          message: 'No workspace found. Post a report to get started.',
+        });
+      }
     }
     
     // Verify user owns workspace

@@ -1,14 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-
-interface Workspace {
-  id: number;
-  name: string;
-  api_key: string;
-}
 
 interface DashboardData {
   latestReport: {
@@ -18,7 +14,6 @@ interface DashboardData {
     crons: { enabled: number; total: number };
     costs: { today: number; month: number };
     tokens?: { input: number; output: number };
-    modelBreakdown?: Record<string, number>;
     system?: {
       hostname?: string;
       platform?: string;
@@ -33,1128 +28,296 @@ interface DashboardData {
       diskUsedPercent?: number;
       localIp?: string;
       uptime?: number;
-      loadAvg?: number[];
-    };
-    endpoints?: Array<{
-      name: string;
-      url: string;
-      status: 'up' | 'down' | 'error';
-      responseTime?: number;
-      statusCode?: number;
-      error?: string;
-    }>;
-    processes?: Array<{
-      name: string;
-      running: boolean;
-      pid?: number;
-      cpu?: number;
-      memory?: number;
-    }>;
-    custom?: Record<string, number | string | boolean | null>;
-    errors?: {
-      last24h: number;
-      lastError?: { message: string; timestamp: string };
     };
   } | null;
-  history?: Array<{ timestamp: string; cost_today: number; sessions_active: number }>;
   reportedAt: string | null;
   gatewayOnline: boolean;
 }
 
-interface HistoryPoint {
-  timestamp: string;
-  gateway_online: boolean;
-  sessions_active: number;
-  cost_today: number;
-  system_cpu_usage_percent: number | null;
-  system_memory_used_percent: number | null;
-  system_disk_used_percent: number | null;
+interface Agent {
+  hostname: string;
+  lastSeen: string;
+  isOnline: boolean;
+  sessions24h: number;
+  totalSessions: number;
+  tokensInput: number;
+  tokensOutput: number;
+  platform: string;
+  arch: string;
+  cpuCount: number;
+  avgCpu: number;
+  avgMemory: number;
+  uptime: number;
+  ip: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://web-xi-khaki.vercel.app";
+interface HistoryPoint {
+  timestamp: string;
+  sessions_active: number;
+  cost_today: number;
+}
 
-// Landing page component
+// Skeleton loader
+function Skeleton({ className }: { className?: string }) {
+  return <div className={`animate-pulse bg-zinc-800 rounded ${className}`} />;
+}
+
+// Landing page component - Vercel style
 function LandingPage() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
-      {/* Aurora background */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/30 via-zinc-950 to-zinc-950" />
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-600/20 rounded-full blur-[128px] animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: "1s" }} />
-        <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-emerald-600/10 rounded-full blur-[96px] animate-pulse" style={{ animationDelay: "2s" }} />
-      </div>
-      
-      <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Header */}
-        <header className="flex items-center justify-between px-6 py-6 max-w-6xl mx-auto w-full">
+    <div className="min-h-screen bg-black text-white font-sans">
+      <div className="max-w-5xl mx-auto px-6">
+        <header className="flex items-center justify-between py-6 border-b border-zinc-900">
           <div className="flex items-center gap-3">
-            <span className="text-3xl">🐾</span>
-            <span className="text-2xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-              PawPrint
-            </span>
+            <span className="text-xl">🐾</span>
+            <span className="font-semibold text-lg">PawPrint</span>
           </div>
-          <div className="flex items-center gap-4">
-            <a href="#features" className="text-zinc-400 hover:text-white transition-colors hidden sm:block">Features</a>
-            <a href="#how-it-works" className="text-zinc-400 hover:text-white transition-colors hidden sm:block">How it Works</a>
-            <button
-              onClick={() => signIn("github")}
-              className="px-5 py-2.5 bg-zinc-100 text-zinc-900 rounded-lg font-semibold hover:bg-zinc-200 transition-all hover:scale-105"
-            >
+          <div className="flex items-center gap-6">
+            <a href="#features" className="text-zinc-500 hover:text-white text-sm transition-colors">Features</a>
+            <a href="#pricing" className="text-zinc-500 hover:text-white text-sm transition-colors">Pricing</a>
+            <button onClick={() => signIn("github")} className="text-sm font-medium text-white hover:text-zinc-300 transition-colors">
               Sign In
             </button>
           </div>
         </header>
 
-        <main className="flex-1">
-          {/* Hero Section */}
-          <section className="px-6 py-20 sm:py-32 text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 mb-8">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-sm text-zinc-300">Now with real-time system monitoring</span>
-            </div>
-            
-            <div className="text-5xl sm:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-indigo-200 to-purple-200 bg-clip-text text-transparent leading-tight">
-              Monitor your<br />AI agents in real-time
-            </div>
-            <p className="text-xl sm:text-2xl text-zinc-400 mb-10 max-w-2xl mx-auto">
-              Track sessions, token usage, costs, and system health. Get Slack alerts when things go wrong.
+        <main>
+          <section className="py-32 text-center">
+            <h1 className="text-5xl sm:text-6xl font-semibold tracking-tight mb-6">Monitor your AI agents</h1>
+            <p className="text-xl text-zinc-400 mb-10 max-w-xl mx-auto">
+              Real-time metrics for sessions, tokens, costs, and system health. Deploy in seconds.
             </p>
-            <button
-              onClick={() => signIn("github")}
-              className="px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500 text-white rounded-2xl font-bold text-lg hover:from-indigo-600 hover:via-purple-600 hover:to-violet-600 transition-all hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/25"
-            >
-              🚀 Sign in with GitHub — Free
+            <button onClick={() => signIn("github")} className="inline-flex items-center gap-2 px-6 py-3 bg-white text-black font-medium rounded-full hover:bg-zinc-200 transition-colors">
+              Start Monitoring <span>›</span>
             </button>
-            <p className="mt-4 text-sm text-zinc-500">No credit card required</p>
           </section>
 
-          {/* Features Section */}
-          <section id="features" className="px-6 py-20 max-w-6xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-4xl font-bold mb-4">Everything you need</h2>
-              <p className="text-zinc-400 text-lg">Monitor your AI infrastructure at a glance</p>
-            </div>
-            
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <section id="features" className="py-24 border-t border-zinc-900">
+            <h2 className="text-2xl font-semibold mb-12">Features</h2>
+            <div className="grid md:grid-cols-3 gap-8">
               {[
-                { icon: "📊", title: "Real-Time Metrics", desc: "Sessions, tokens, and costs at a glance. Know exactly what's happening with your agents.", color: "from-blue-500/20 to-blue-500/5" },
-                { icon: "🖥️", title: "System Health", desc: "Memory, disk, and network monitoring. Spot issues before they become problems.", color: "from-emerald-500/20 to-emerald-500/5" },
-                { icon: "🔔", title: "Smart Alerts", desc: "Slack notifications when costs spike or your agents go offline.", color: "from-amber-500/20 to-amber-500/5" },
-                { icon: "📈", title: "Historical Trends", desc: "7-day and 30-day charts. Understand usage patterns over time.", color: "from-violet-500/20 to-violet-500/5" },
-                { icon: "🔐", title: "Multi-Workspace", desc: "Monitor multiple deployments from one dashboard. Organize by project or client.", color: "from-cyan-500/20 to-cyan-500/5" },
-                { icon: "⚡", title: "5-Minute Setup", desc: "One command to install. Reporter auto-starts with cron.", color: "from-pink-500/20 to-pink-500/5" },
-              ].map((feature, i) => (
-                <div
-                  key={i}
-                  className={`backdrop-blur-xl bg-gradient-to-br ${feature.color} border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-white/20 transition-all hover:-translate-y-1 group`}
-                >
-                  <div className="text-4xl mb-4">{feature.icon}</div>
-                  <h3 className="text-xl font-bold mb-2">{feature.title}</h3>
-                  <p className="text-zinc-400">{feature.desc}</p>
+                { title: "Real-Time Metrics", desc: "Track sessions, tokens, and costs as they happen." },
+                { title: "System Health", desc: "CPU, memory, disk, and network monitoring." },
+                { title: "Smart Alerts", desc: "Get notified when costs spike or agents go offline." },
+                { title: "Historical Data", desc: "7-day and 30-day trends with charts." },
+                { title: "Multi-Workspace", desc: "Organize agents by project or client." },
+                { title: "Easy Setup", desc: "One command to install. Auto-starts with cron." },
+              ].map((f, i) => (
+                <div key={i} className="p-6 border border-zinc-900 rounded-xl hover:border-zinc-800 transition-colors">
+                  <h3 className="font-medium mb-2">{f.title}</h3>
+                  <p className="text-zinc-500 text-sm">{f.desc}</p>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* How It Works Section */}
-          <section id="how-it-works" className="px-6 py-20 max-w-4xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-4xl font-bold mb-4">How it works</h2>
-              <p className="text-zinc-400 text-lg">Up and running in 2 minutes</p>
+          <footer className="py-12 border-t border-zinc-900 text-sm text-zinc-500">
+            <div className="flex items-center justify-between">
+              <p>Built by Dave</p>
+              <a href="https://github.com/lowvisiondave/pawprint" className="flex items-center gap-1 hover:text-white transition-colors">
+                GitHub <span>↗</span>
+              </a>
             </div>
-            
-            <div className="grid gap-6">
-              {[
-                { step: "1", title: "Sign in with GitHub", desc: "Create your account instantly. No passwords, no setup." },
-                { step: "2", title: "Create a workspace", desc: "Organize your agents by project, client, or environment." },
-                { step: "3", title: "Install the reporter", desc: "One command to start sending metrics. We'll handle the rest." },
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  className="flex items-start gap-6 backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6"
-                >
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-xl font-bold flex-shrink-0">
-                    {item.step}
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold mb-1">{item.title}</h3>
-                    <p className="text-zinc-400">{item.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* CTA Section */}
-          <section className="px-6 py-20 text-center">
-            <div className="backdrop-blur-xl bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-violet-500/20 border border-white/10 rounded-3xl p-12 max-w-2xl mx-auto">
-              <h2 className="text-3xl sm:text-4xl font-bold mb-4">Ready to monitor?</h2>
-              <p className="text-zinc-400 text-lg mb-8">Join developers who know exactly what their AI agents are doing.</p>
-              <button
-                onClick={() => signIn("github")}
-                className="px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500 text-white rounded-2xl font-bold text-lg hover:from-indigo-600 hover:via-purple-600 hover:to-violet-600 transition-all hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/25"
-              >
-                🚀 Get Started — Free
-              </button>
-            </div>
-          </section>
+          </footer>
         </main>
-
-        {/* Footer */}
-        <footer className="border-t border-white/5 py-8 px-6">
-          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4 text-zinc-500">
-              <a href="https://github.com/lowvisiondave/pawprint" className="hover:text-white transition-colors">GitHub</a>
-              <span>·</span>
-              <span>Built by Dave & friends</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">🐾</span>
-              <span className="font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">PawPrint</span>
-            </div>
-          </div>
-        </footer>
       </div>
     </div>
   );
 }
 
-// Authenticated dashboard
-function AuthDashboard({ data, workspaceId: initialWorkspaceId }: { data: DashboardData; workspaceId: string }) {
+// Authenticated Dashboard
+function AuthDashboard({ data, agents: initialAgents, workspaceId }: { data: DashboardData; agents: Agent[]; workspaceId: string }) {
   const { data: session } = useSession();
-  const [workspaceId, setWorkspaceId] = useState(initialWorkspaceId);
-  const [workspaces, setWorkspaces] = useState<Array<{id: number; name: string}>>([]);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "agents" | "alerts" | "settings" | "install">("dashboard");
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab") || "dashboard";
   const [history, setHistory] = useState<HistoryPoint[]>([]);
-  const [agents, setAgents] = useState<Array<{
-    hostname: string;
-    lastSeen: string;
-    isOnline: boolean;
-    sessions24h: number;
-    totalSessions: number;
-    tokensInput: number;
-    tokensOutput: number;
-    platform: string;
-    arch: string;
-    cpuCount: number;
-    avgCpu: number;
-    avgMemory: number;
-    uptime: number;
-    ip: string;
-  }>>([]);
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("24h");
-  const [workspaceSettings, setWorkspaceSettings] = useState<{name?: string; api_key?: string} | null>(null);
-  
-  // Fetch workspaces on mount
-  useEffect(() => {
-    fetch(`${API_URL}/api/v1/workspaces`)
-      .then(r => r.json())
-      .then(d => setWorkspaces(d.workspaces || []));
-  }, []);
 
   useEffect(() => {
-    setLoading(true);
-    const hours = timeRange === "24h" ? 24 : timeRange === "7d" ? 168 : 720;
-    fetch(`${API_URL}/api/v1/history?workspace_id=${workspaceId}&hours=${hours}`)
+    fetch(`/api/v1/history?workspace_id=${workspaceId}&hours=24`)
       .then(r => r.json())
       .then(d => setHistory(d.history || []))
       .finally(() => setLoading(false));
-  }, [workspaceId, timeRange]);
+  }, [workspaceId]);
 
-  useEffect(() => {
-    if (activeTab === "agents") {
-      fetch(`${API_URL}/api/v1/agents?workspace_id=${workspaceId}`)
-        .then(r => r.json())
-        .then(d => setAgents(d.agents || []));
-    }
-    
-    if (activeTab === "install" || activeTab === "settings") {
-      fetch(`${API_URL}/api/v1/workspace/settings?id=${workspaceId}`)
-        .then(r => r.json())
-        .then(d => setWorkspaceSettings(d.workspace || null));
-    }
-  }, [activeTab, workspaceId]);
-
-  const latestReport = data?.latestReport;
+  const latest = data?.latestReport;
   const isOnline = data?.gatewayOnline;
 
-  const formatTime = (ts: string) => {
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const formatUptime = (seconds: number) => {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    if (days > 0) return `${days}d ${hours}h`;
+    return `${hours}h`;
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Aurora background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-zinc-950 to-zinc-950" />
-        <div className="absolute top-0 -left-32 w-96 h-96 bg-violet-600/15 rounded-full blur-[128px]" />
-        <div className="absolute bottom-0 -right-32 w-96 h-96 bg-blue-600/15 rounded-full blur-[128px]" />
-      </div>
-
-      <div className="relative z-10">
-        {/* Header */}
-        <header className="border-b border-white/5 backdrop-blur-sm bg-zinc-950/50 sticky top-0 z-50">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🐾</span>
-              <span className="text-xl font-bold">PawPrint</span>
-              
-              {/* Workspace Selector */}
-              {workspaces.length > 0 && (
-                <select 
-                  value={workspaceId}
-                  onChange={(e) => {
-                    setWorkspaceId(e.target.value);
-                    window.location.href = `/?workspace_id=${e.target.value}`;
-                  }}
-                  className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1 text-sm text-white focus:outline-none focus:border-indigo-500"
-                >
-                  {workspaces.map(ws => (
-                    <option key={ws.id} value={ws.id}>{ws.name}</option>
-                  ))}
-                </select>
-              )}
-              
-              <span className={`px-2 py-0.5 text-xs rounded-full ${isOnline ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
-                {isOnline ? "● Online" : "○ Offline"}
-              </span>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-zinc-400 hidden sm:block">{session?.user?.name}</span>
-              <button
-                onClick={() => signOut()}
-                className="text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
+    <div className="min-h-screen bg-black text-white font-sans">
+      <div className="max-w-6xl mx-auto px-6">
+        <header className="flex items-center justify-between py-5 border-b border-zinc-900">
+          <div className="flex items-center gap-4">
+            <span className="text-xl">🐾</span>
+            <span className="font-semibold">PawPrint</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${isOnline ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+              {isOnline ? 'Online' : 'Offline'}
+            </span>
           </div>
-
-          {/* Tabs */}
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <nav className="flex gap-1 overflow-x-auto">
-              {[
-                { id: "dashboard", label: "Dashboard", icon: "📊" },
-                { id: "agents", label: "Agents", icon: "🖥️" },
-                { id: "alerts", label: "Alerts", icon: "🔔" },
-                { id: "settings", label: "Settings", icon: "⚙️" },
-                { id: "install", label: "Install", icon: "📥" },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-all ${
-                    activeTab === tab.id
-                      ? "border-indigo-500 text-white"
-                      : "border-transparent text-zinc-500 hover:text-zinc-300"
-                  }`}
-                >
-                  {tab.icon} {tab.label}
-                </button>
-              ))}
-            </nav>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-zinc-500">{session?.user?.name}</span>
+            <button onClick={() => signOut()} className="text-sm text-zinc-500 hover:text-white">Sign Out</button>
           </div>
         </header>
 
-        <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-          {activeTab === "dashboard" && (
-            <div className="space-y-6">
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-                {[
-                  {
-                    label: "Input Tokens",
-                    value: latestReport?.tokens ? (latestReport.tokens.input / 1000).toFixed(1) + 'K' : '0',
-                    icon: "📥",
-                    color: "from-blue-500/20 to-blue-500/5",
-                  },
-                  {
-                    label: "Output Tokens",
-                    value: latestReport?.tokens ? (latestReport.tokens.output / 1000).toFixed(1) + 'K' : '0',
-                    icon: "📤",
-                    color: "from-violet-500/20 to-violet-500/5",
-                  },
-                  {
-                    label: "Active Sessions",
-                    value: latestReport?.sessions?.active || 0,
-                    icon: "💬",
-                    color: "from-emerald-500/20 to-emerald-500/5",
-                  },
-                  {
-                    label: "Total Sessions",
-                    value: latestReport?.sessions?.total || 0,
-                    icon: "📊",
-                    color: "from-amber-500/20 to-amber-500/5",
-                  },
-                  {
-                    label: "Crons",
-                    value: `${latestReport?.crons?.enabled || 0}/${latestReport?.crons?.total || 0}`,
-                    icon: "⏰",
-                    color: "from-cyan-500/20 to-cyan-500/5",
-                  },
-                  {
-                    label: "Errors (24h)",
-                    value: latestReport?.errors?.last24h || 0,
-                    icon: "⚠️",
-                    color: (latestReport?.errors?.last24h || 0) > 0 
-                      ? "from-red-500/30 to-red-500/10" 
-                      : "from-zinc-500/20 to-zinc-500/5",
-                    error: (latestReport?.errors?.last24h || 0) > 0,
-                  },
-                ].map((stat, i) => (
-                  <div
-                    key={i}
-                    className={`backdrop-blur-xl bg-gradient-to-br border rounded-2xl p-5 hover:border-white/20 transition-all hover:scale-[1.02] ${
-                      (stat as any).error 
-                        ? "border-red-500/50 bg-gradient-to-br from-red-500/20 to-red-500/5" 
-                        : "border-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-zinc-500 text-sm">{stat.label}</span>
-                      <span className="text-xl">{stat.icon}</span>
+        <nav className="flex gap-8 py-4 border-b border-zinc-900">
+          {[
+            { id: 'dashboard', label: 'Dashboard' },
+            { id: 'agents', label: `Agents (${initialAgents.length})` },
+          ].map(tab => (
+            <Link key={tab.id} href={`?tab=${tab.id}`}
+              className={`text-sm font-medium pb-4 border-b-2 transition-colors ${
+                activeTab === tab.id ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'
+              }`}>
+              {tab.label}
+            </Link>
+          ))}
+        </nav>
+
+        {activeTab === 'dashboard' && (
+          <main className="py-8">
+            {loading ? (
+              <div className="grid md:grid-cols-4 gap-4">
+                {[1,2,3,4].map(i => <Skeleton key={i} className="h-32" />)}
+              </div>
+            ) : latest ? (
+              <>
+                <div className="grid md:grid-cols-4 gap-4 mb-8">
+                  <StatCard label="Active Sessions" value={latest.sessions.active.toString()} sublabel="now" />
+                  <StatCard label="Total Sessions" value={latest.sessions.total.toString()} sublabel="all time" />
+                  <StatCard label="Uptime" value={formatUptime(latest.gateway.uptime)} />
+                  <StatCard label="Cost Today" value={`$${latest.costs.today.toFixed(4)}`} />
+                </div>
+
+                {latest.system && (
+                  <div className="grid md:grid-cols-3 gap-4 mb-8">
+                    <StatCard label="CPU" value={`${latest.system.cpuUsagePercent || 0}%`} sublabel={`${latest.system.cpuCount} cores`} />
+                    <StatCard label="Memory" value={`${latest.system.memoryUsedPercent || 0}%`} sublabel={`${latest.system.memoryFreeMb}MB free`} />
+                    <StatCard label="Disk" value={`${latest.system.diskUsedPercent || 0}%`} sublabel={`${latest.system.diskFreeGb}GB free`} />
+                  </div>
+                )}
+
+                {latest.tokens && (
+                  <div className="grid md:grid-cols-2 gap-4 mb-8">
+                    <div className="p-4 border border-zinc-900 rounded-lg">
+                      <div className="text-xs text-zinc-500 mb-1">Input Tokens</div>
+                      <div className="text-2xl font-medium">{latest.tokens.input.toLocaleString()}</div>
                     </div>
-                    <div className={`text-2xl sm:text-3xl font-bold ${(stat as any).error ? "text-red-400" : ""}`}>{stat.value}</div>
+                    <div className="p-4 border border-zinc-900 rounded-lg">
+                      <div className="text-xs text-zinc-500 mb-1">Output Tokens</div>
+                      <div className="text-2xl font-medium">{latest.tokens.output.toLocaleString()}</div>
+                    </div>
+                  </div>
+                )}
+
+                {history.length > 0 && (
+                  <div className="border border-zinc-900 rounded-lg p-6">
+                    <h3 className="text-sm font-medium text-zinc-400 mb-4">Sessions (24h)</h3>
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={history}>
+                          <XAxis dataKey="timestamp" tickFormatter={(t) => new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} stroke="#52525b" fontSize={12} />
+                          <YAxis stroke="#52525b" fontSize={12} />
+                          <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #27272a' }} labelFormatter={(t) => new Date(t).toLocaleString()} />
+                          <Line type="monotone" dataKey="sessions_active" stroke="#fff" strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-zinc-600 mt-6">
+                  Last updated: {data.reportedAt ? new Date(data.reportedAt).toLocaleString() : 'Never'}
+                </p>
+              </>
+            ) : (
+              <div className="text-center py-16 text-zinc-500">No data yet.</div>
+            )}
+          </main>
+        )}
+
+        {activeTab === 'agents' && (
+          <main className="py-8">
+            <h2 className="text-xl font-semibold mb-6">Agents</h2>
+            
+            {initialAgents.length === 0 ? (
+              <div className="text-center py-16 text-zinc-500 border border-zinc-900 rounded-lg">
+                No agents reporting yet.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {initialAgents.map((agent) => (
+                  <div key={agent.hostname} className="p-4 border border-zinc-900 rounded-lg">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <span className={`w-2 h-2 rounded-full ${agent.isOnline ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+                        <span className="font-medium">{agent.hostname}</span>
+                      </div>
+                      <span className="text-xs text-zinc-500">{agent.platform}/{agent.arch}</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-sm">
+                      <div>
+                        <div className="text-zinc-500">Sessions (24h)</div>
+                        <div className="font-medium">{agent.sessions24h}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500">Total</div>
+                        <div className="font-medium">{agent.totalSessions}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500">CPU</div>
+                        <div className="font-medium">{agent.avgCpu}%</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500">Memory</div>
+                        <div className="font-medium">{agent.avgMemory}%</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500">IP</div>
+                        <div className="font-mono text-xs">{agent.ip}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500">Uptime</div>
+                        <div className="font-medium">{formatUptime(agent.uptime || 0)}</div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
-
-              {/* System Health Card */}
-              {latestReport?.system?.hostname && (
-                <div className="backdrop-blur-xl bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-xl">🖥️</span>
-                    <span className="font-semibold">System Health</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-                    <div className="bg-zinc-900/50 rounded-xl p-3">
-                      <div className="text-xs text-zinc-500 mb-1">Host</div>
-                      <div className="font-mono text-sm truncate">{latestReport.system.hostname}</div>
-                    </div>
-                    <div className="bg-zinc-900/50 rounded-xl p-3">
-                      <div className="text-xs text-zinc-500 mb-1">CPU</div>
-                      <div className="font-semibold">
-                        {latestReport.system.cpuUsagePercent ?? 0}%
-                        <span className="text-zinc-500 text-xs ml-1">({latestReport.system.cpuCount ?? 1} cores)</span>
-                      </div>
-                    </div>
-                    <div className="bg-zinc-900/50 rounded-xl p-3">
-                      <div className="text-xs text-zinc-500 mb-1">Memory</div>
-                      <div className="font-semibold">
-                        {latestReport.system.memoryUsedPercent ?? 0}% 
-                        <span className="text-zinc-500 text-xs ml-1">({latestReport.system.memoryFreeMb ?? 0}MB free)</span>
-                      </div>
-                    </div>
-                    <div className="bg-zinc-900/50 rounded-xl p-3">
-                      <div className="text-xs text-zinc-500 mb-1">Disk</div>
-                      <div className="font-semibold">
-                        {latestReport.system.diskUsedPercent ?? 0}%
-                        <span className="text-zinc-500 text-xs ml-1">({latestReport.system.diskFreeGb ?? 0}GB free)</span>
-                      </div>
-                    </div>
-                    <div className="bg-zinc-900/50 rounded-xl p-3">
-                      <div className="text-xs text-zinc-500 mb-1">Uptime</div>
-                      <div className="font-semibold text-sm">
-                        {latestReport.system.uptime ? (
-                          latestReport.system.uptime >= 86400 
-                            ? `${Math.floor(latestReport.system.uptime / 86400)}d ${Math.floor((latestReport.system.uptime % 86400) / 3600)}h`
-                            : `${Math.floor(latestReport.system.uptime / 3600)}h ${Math.floor((latestReport.system.uptime % 3600) / 60)}m`
-                        ) : '-'}
-                      </div>
-                    </div>
-                    <div className="bg-zinc-900/50 rounded-xl p-3">
-                      <div className="text-xs text-zinc-500 mb-1">IP</div>
-                      <div className="font-mono text-sm">{latestReport.system.localIp ?? '-'}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Endpoints Card */}
-              {latestReport?.endpoints && latestReport.endpoints.length > 0 && (
-                <div className="backdrop-blur-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-xl">🌐</span>
-                    <span className="font-semibold">Endpoints</span>
-                    <span className="ml-auto text-sm">
-                      <span className="text-emerald-400">{latestReport.endpoints.filter(e => e.status === 'up').length}</span>
-                      <span className="text-zinc-500">/</span>
-                      <span className="text-zinc-400">{latestReport.endpoints.length}</span>
-                      <span className="text-zinc-500"> up</span>
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {latestReport.endpoints.map((ep, i) => (
-                      <div key={i} className={`bg-zinc-900/50 rounded-xl p-3 flex items-center justify-between ${
-                        ep.status === 'up' ? 'border-l-2 border-emerald-500' : 'border-l-2 border-red-500'
-                      }`}>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-sm truncate">{ep.name}</div>
-                          <div className="text-xs text-zinc-500 truncate">{ep.url}</div>
-                        </div>
-                        <div className="ml-3 text-right">
-                          <div className={`text-sm font-semibold ${ep.status === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {ep.status === 'up' ? `${ep.responseTime}ms` : ep.status}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Processes Card */}
-              {latestReport?.processes && latestReport.processes.length > 0 && (
-                <div className="backdrop-blur-xl bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-xl">⚙️</span>
-                    <span className="font-semibold">Processes</span>
-                    <span className="ml-auto text-sm">
-                      <span className="text-violet-400">{latestReport.processes.filter(p => p.running).length}</span>
-                      <span className="text-zinc-500">/</span>
-                      <span className="text-zinc-400">{latestReport.processes.length}</span>
-                      <span className="text-zinc-500"> running</span>
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {latestReport.processes.map((proc, i) => (
-                      <div key={i} className={`bg-zinc-900/50 rounded-xl p-3 flex items-center gap-2 ${
-                        proc.running ? 'border-l-2 border-violet-500' : 'border-l-2 border-zinc-600'
-                      }`}>
-                        <div className={`w-2 h-2 rounded-full ${proc.running ? 'bg-violet-400' : 'bg-zinc-600'}`} />
-                        <div className="font-medium text-sm truncate">{proc.name}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Custom Metrics Card */}
-              {latestReport?.custom && Object.keys(latestReport.custom).length > 0 && (
-                <div className="backdrop-blur-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-xl">📊</span>
-                    <span className="font-semibold">Custom Metrics</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {Object.entries(latestReport.custom).map(([key, value]) => (
-                      <div key={key} className="bg-zinc-900/50 rounded-xl p-3">
-                        <div className="text-xs text-zinc-500 mb-1 truncate">{key}</div>
-                        <div className="font-semibold text-lg">
-                          {value === null ? '-' : typeof value === 'number' ? value.toLocaleString() : String(value)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Error Alerts */}
-              {latestReport?.errors && latestReport.errors.last24h > 0 && (
-                <div className="backdrop-blur-xl bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/30 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-xl">⚠️</span>
-                    <span className="font-semibold">Errors</span>
-                    <span className="ml-auto bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-sm font-semibold">
-                      {latestReport.errors.last24h} in 24h
-                    </span>
-                  </div>
-                  {latestReport.errors.lastError && (
-                    <div className="bg-zinc-900/50 rounded-xl p-4 border-l-2 border-red-500">
-                      <div className="text-xs text-zinc-500 mb-1">
-                        Last error: {new Date(latestReport.errors.lastError.timestamp).toLocaleString()}
-                      </div>
-                      <div className="font-mono text-sm text-red-300 truncate">
-                        {latestReport.errors.lastError.message}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Charts */}
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-lg">📈 History</h3>
-                <div className="flex bg-zinc-900/50 rounded-lg p-1">
-                  {(["24h", "7d", "30d"] as const).map((range) => (
-                    <button
-                      key={range}
-                      onClick={() => setTimeRange(range)}
-                      className={`px-3 py-1.5 text-sm rounded-md transition-all ${
-                        timeRange === range
-                          ? "bg-indigo-500 text-white"
-                          : "text-zinc-400 hover:text-white"
-                      }`}
-                    >
-                      {range}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="grid lg:grid-cols-2 gap-6">
-                {/* Sessions Chart */}
-                <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-5">
-                  <h3 className="font-semibold mb-4">💬 Sessions ({timeRange})</h3>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={history}>
-                        <XAxis 
-                          dataKey="timestamp" 
-                          tickFormatter={formatTime}
-                          stroke="#71717a" 
-                          fontSize={12}
-                          tickLine={false}
-                        />
-                        <YAxis stroke="#71717a" fontSize={12} tickLine={false} />
-                        <Tooltip
-                          contentStyle={{ 
-                            backgroundColor: "rgba(24,24,27,0.95)", 
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: "12px",
-                            backdropFilter: "blur(10px)"
-                          }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="sessions_active" 
-                          stroke="#10b981" 
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* System Metrics Overview */}
-                {history.some(h => h.system_cpu_usage_percent !== null) && (
-                  <div className="backdrop-blur-xl bg-gradient-to-br from-orange-500/10 to-cyan-500/10 border border-orange-500/20 rounded-2xl p-5">
-                    <h3 className="font-semibold mb-4">📊 System Metrics ({timeRange})</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between text-xs text-zinc-400 mb-1">
-                          <span>CPU</span>
-                          <span>{history[0]?.system_cpu_usage_percent ?? 0}%</span>
-                        </div>
-                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-orange-500" style={{width: `${history[0]?.system_cpu_usage_percent ?? 0}%`}} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-xs text-zinc-400 mb-1">
-                          <span>Memory</span>
-                          <span>{history[0]?.system_memory_used_percent ?? 0}%</span>
-                        </div>
-                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-cyan-500" style={{width: `${history[0]?.system_memory_used_percent ?? 0}%`}} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-xs text-zinc-400 mb-1">
-                          <span>Disk</span>
-                          <span>{history[0]?.system_disk_used_percent ?? 0}%</span>
-                        </div>
-                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-purple-500" style={{width: `${history[0]?.system_disk_used_percent ?? 0}%`}} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Token & Model Breakdown */}
-              {(latestReport?.tokens || latestReport?.modelBreakdown) && (
-                <div className="grid lg:grid-cols-2 gap-6">
-                  {latestReport?.tokens && (
-                    <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-5">
-                      <h3 className="font-semibold mb-4">🔤 Tokens Today</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-zinc-900/50 rounded-xl p-4">
-                          <div className="text-zinc-500 text-sm mb-1">Input</div>
-                          <div className="text-xl font-bold text-blue-400">
-                            {(latestReport.tokens.input / 1000).toFixed(1)}K
-                          </div>
-                        </div>
-                        <div className="bg-zinc-900/50 rounded-xl p-4">
-                          <div className="text-zinc-500 text-sm mb-1">Output</div>
-                          <div className="text-xl font-bold text-violet-400">
-                            {(latestReport.tokens.output / 1000).toFixed(1)}K
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {latestReport?.modelBreakdown && Object.keys(latestReport.modelBreakdown).length > 0 && (
-                    <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-5">
-                      <h3 className="font-semibold mb-4">🤖 Model Usage</h3>
-                      <div className="space-y-2">
-                        {Object.entries(latestReport.modelBreakdown).map(([model, count]) => (
-                          <div key={model} className="flex items-center justify-between bg-zinc-900/50 rounded-lg p-3">
-                            <span className="font-mono text-sm truncate flex-1 mr-2">{model}</span>
-                            <span className="font-semibold">{count as number}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Last updated */}
-              {data?.reportedAt && (
-                <p className="text-center text-zinc-500 text-sm">
-                  Last updated: {new Date(data.reportedAt).toLocaleString()}
-                </p>
-              )}
-            </div>
-          )}
-
-          {activeTab === "agents" && (
-            <div className="space-y-6">
-              <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
-                <h2 className="text-xl font-bold mb-2">🖥️ Agent Fleet</h2>
-                <p className="text-zinc-400 mb-6">{agents.length} agent{agents.length !== 1 ? 's' : ''} reporting</p>
-                
-                {agents.length === 0 ? (
-                  <div className="text-center py-8 text-zinc-500">
-                    No agents reporting yet. Install the reporter to see agents here.
-                  </div>
-                ) : (
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {agents.map((agent) => (
-                      <div 
-                        key={agent.hostname}
-                        className="backdrop-blur-xl bg-gradient-to-br from-zinc-900/80 to-zinc-800/30 border border-white/10 rounded-xl p-5"
-                      >
-                        {/* Header */}
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-3 h-3 rounded-full ${agent.isOnline ? "bg-emerald-400 animate-pulse" : "bg-zinc-500"}`} />
-                            <div className="font-mono font-bold text-lg">{agent.hostname}</div>
-                          </div>
-                          <div className="text-xs text-zinc-500">
-                            {agent.platform}/{agent.arch}
-                          </div>
-                        </div>
-                        
-                        {/* Stats Grid */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-zinc-950/50 rounded-lg p-3">
-                            <div className="text-xs text-zinc-500 mb-1">Sessions (24h)</div>
-                            <div className="font-bold text-xl">{agent.sessions24h}</div>
-                          </div>
-                          <div className="bg-zinc-950/50 rounded-lg p-3">
-                            <div className="text-xs text-zinc-500 mb-1">Total Sessions</div>
-                            <div className="font-bold text-xl">{agent.totalSessions}</div>
-                          </div>
-                          <div className="bg-zinc-950/50 rounded-lg p-3">
-                            <div className="text-xs text-zinc-500 mb-1">Input Tokens</div>
-                            <div className="font-bold text-lg text-blue-400">{(agent.tokensInput / 1000).toFixed(1)}K</div>
-                          </div>
-                          <div className="bg-zinc-950/50 rounded-lg p-3">
-                            <div className="text-xs text-zinc-500 mb-1">Output Tokens</div>
-                            <div className="font-bold text-lg text-violet-400">{(agent.tokensOutput / 1000).toFixed(1)}K</div>
-                          </div>
-                        </div>
-                        
-                        {/* System Info */}
-                        <div className="mt-4 pt-4 border-t border-zinc-800 grid grid-cols-3 gap-2 text-xs">
-                          <div>
-                            <div className="text-zinc-500">CPU</div>
-                            <div className="font-semibold">{agent.avgCpu}%</div>
-                          </div>
-                          <div>
-                            <div className="text-zinc-500">Memory</div>
-                            <div className="font-semibold">{agent.avgMemory}%</div>
-                          </div>
-                          <div>
-                            <div className="text-zinc-500">Uptime</div>
-                            <div className="font-semibold">
-                              {agent.uptime ? (
-                                agent.uptime >= 86400 
-                                  ? `${Math.floor(agent.uptime / 86400)}d`
-                                  : `${Math.floor(agent.uptime / 3600)}h`
-                              ) : '-'}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Last Seen */}
-                        <div className="mt-3 text-xs text-zinc-500">
-                          Last seen: {agent.lastSeen ? new Date(agent.lastSeen).toLocaleString() : 'Never'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "alerts" && (
-            <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6 max-w-2xl">
-              <h2 className="text-xl font-bold mb-2">🔔 Alert Settings</h2>
-              <p className="text-zinc-400 mb-6">Get notified when costs spike or agents go offline.</p>
-              
-              <form className="space-y-4" onSubmit={(e) => {
-                e.preventDefault();
-                const form = e.target as HTMLFormElement;
-                const formData = new FormData(form);
-                fetch(`${API_URL}/api/v1/workspace/settings?id=${workspaceId}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    alert_cost_threshold: formData.get('alert_cost_threshold') || null,
-                    alert_downtime_minutes: formData.get('alert_downtime_minutes') || 5,
-                    slack_webhook_url: formData.get('slack_webhook_url') || null,
-                    alert_email: formData.get('alert_email') || null,
-                  }),
-                }).then(() => alert('Settings saved!'));
-              }}>
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-2">Cost Alert Threshold ($)</label>
-                  <input 
-                    name="alert_cost_threshold"
-                    type="number" 
-                    step="0.01"
-                    placeholder="10.00"
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-2">Downtime Alert (minutes)</label>
-                  <input 
-                    name="alert_downtime_minutes"
-                    type="number"
-                    defaultValue={5}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-2">Slack Webhook URL</label>
-                  <input 
-                    name="slack_webhook_url"
-                    type="url"
-                    placeholder="https://hooks.slack.com/services/..."
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-2">Email for Alerts</label>
-                  <input 
-                    name="alert_email"
-                    type="email"
-                    placeholder="you@example.com"
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
-                  />
-                  <p className="text-xs text-zinc-500 mt-1">Coming soon - email alerts require Resend setup</p>
-                </div>
-                
-                <button 
-                  type="submit"
-                  className="w-full py-3 bg-indigo-500 hover:bg-indigo-600 rounded-lg font-semibold transition-colors"
-                >
-                  Save Settings
-                </button>
-              </form>
-            </div>
-          )}
-
-          {activeTab === "settings" && (
-            <div className="space-y-6 max-w-2xl">
-              {/* Create New Workspace */}
-              <div className="backdrop-blur-xl bg-gradient-to-r from-indigo-500/10 to-violet-500/10 border border-indigo-500/20 rounded-2xl p-6">
-                <h2 className="text-xl font-bold mb-4">➕ Create New Workspace</h2>
-                <p className="text-sm text-zinc-400 mb-4">Create separate workspaces for different projects or environments.</p>
-                <div className="flex gap-2">
-                  <input 
-                    id="new_workspace_name"
-                    placeholder="Workspace name (e.g., Production, Staging)"
-                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
-                  />
-                  <button 
-                    onClick={() => {
-                      const name = (document.getElementById('new_workspace_name') as HTMLInputElement)?.value;
-                      if (!name) return;
-                      fetch(`${API_URL}/api/v1/workspace/create?name=${encodeURIComponent(name)}`, {
-                        credentials: 'include'
-                      })
-                        .then(r => r.json())
-                        .then(d => {
-                          if (d.workspace) {
-                            setWorkspaces(ws => [...ws, d.workspace]);
-                            window.location.href = `/?workspace_id=${d.workspace.id}`;
-                          }
-                        });
-                    }}
-                    className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors"
-                  >
-                    Create
-                  </button>
-                </div>
-              </div>
-              
-              {/* Workspace Info */}
-              <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
-                <h2 className="text-xl font-bold mb-4">🏢 Workspace</h2>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-2">Workspace Name</label>
-                    <div className="flex gap-2">
-                      <input 
-                        name="workspace_name"
-                        defaultValue={workspaceSettings?.name}
-                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
-                      />
-                      <button 
-                        onClick={(e) => {
-                          const name = (e.target as HTMLElement).previousElementSibling?.querySelector('input')?.value;
-                          fetch(`${API_URL}/api/v1/workspace/settings?id=${workspaceId}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ name }),
-                          }).then(() => setWorkspaceSettings(s => s ? { ...s, name } : s));
-                        }}
-                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm text-zinc-400 mb-2">API Key</label>
-                    <div className="flex gap-2">
-                      <code className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 font-mono text-emerald-400">
-                        {workspaceSettings?.api_key || 'Loading...'}
-                      </code>
-                      <button 
-                        onClick={() => {
-                          if (confirm('Regenerate API key? Old key will stop working.')) {
-                            fetch(`${API_URL}/api/v1/workspace/settings?id=${workspaceId}`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'regenerate_api_key' }),
-                            }).then(r => r.json()).then(d => {
-                              if (d.apiKey) {
-                                setWorkspaceSettings(s => s ? { ...s, api_key: d.apiKey } : s);
-                              }
-                            });
-                          }
-                        }}
-                        className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors text-sm"
-                      >
-                        🔄 Regenerate
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* Invite Link Section */}
-                  <div className="pt-4 border-t border-zinc-800">
-                    <label className="block text-sm text-zinc-400 mb-2">Agent Invite Link</label>
-                    <p className="text-xs text-zinc-500 mb-3">Share this link with agents to give them workspace access.</p>
-                    <div className="flex gap-2">
-                      <input 
-                        id="invite_link"
-                        readOnly
-                        placeholder="Click generate to create invite link..."
-                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-sm text-zinc-300 placeholder-zinc-600"
-                      />
-                      <button 
-                        id="generate_invite"
-                        onClick={() => {
-                          fetch(`${API_URL}/api/v1/workspace/invite?id=${workspaceId}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                          })
-                            .then(r => r.json())
-                            .then(d => {
-                              if (d.inviteUrl) {
-                                (document.getElementById('invite_link') as HTMLInputElement).value = d.inviteUrl;
-                              } else {
-                                alert(d.error || 'Failed to generate invite');
-                              }
-                            });
-                        }}
-                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors text-sm whitespace-nowrap"
-                      >
-                        🔗 Generate
-                      </button>
-                    </div>
-                    <p className="text-xs text-zinc-500 mt-2">Links expire in 24 hours</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Danger Zone */}
-              <div className="backdrop-blur-xl bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
-                <h2 className="text-xl font-bold mb-4 text-red-400">⚠️ Danger Zone</h2>
-                <p className="text-sm text-zinc-400 mb-4">Irreversible actions for your workspace.</p>
-                <button 
-                  className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg text-red-400 transition-colors text-sm"
-                  onClick={() => {
-                    if (confirm('Delete this workspace? All data will be lost forever.')) {
-                      alert('Workspace deletion not implemented yet.');
-                    }
-                  }}
-                >
-                  Delete Workspace
-                </button>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "install" && (
-            <div className="space-y-6 max-w-2xl">
-              {/* Quick Setup */}
-              <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
-                <h2 className="text-xl font-bold mb-4">🐾 Quick Setup (2 minutes)</h2>
-                
-                <div className="space-y-4">
-                  <div className="bg-zinc-900/50 rounded-xl p-4">
-                    <div className="text-sm text-zinc-400 mb-2">Step 1: Copy Your API Key</div>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 font-mono text-emerald-400 text-sm">
-                        {workspaceSettings?.api_key || 'Loading...'}
-                      </code>
-                      <button
-                        onClick={() => workspaceSettings?.api_key && navigator.clipboard.writeText(workspaceSettings.api_key)}
-                        className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm transition-colors"
-                      >
-                        📋 Copy
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="bg-zinc-900/50 rounded-xl p-4">
-                    <div className="text-sm text-zinc-400 mb-2">Step 2: Run the Installer</div>
-                    <p className="text-xs text-zinc-500 mb-3">Open a terminal on your server and run:</p>
-                    <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 overflow-x-auto">
-                      <code className="text-xs text-emerald-400 whitespace-nowrap">
-                        curl -fsSL https://raw.githubusercontent.com/lowvisiondave/pawprint/main/packages/web/public/install.sh | bash -s {workspaceSettings?.api_key || 'YOUR_API_KEY'}
-                      </code>
-                    </div>
-                  </div>
-
-                  <div className="bg-zinc-900/50 rounded-xl p-4">
-                    <div className="text-sm text-zinc-400 mb-2">Step 3: Verify It's Working</div>
-                    <p className="text-xs text-zinc-500">The installer will:</p>
-                    <ul className="text-xs text-zinc-400 mt-2 space-y-1">
-                      <li>✓ Download the reporter</li>
-                      <li>✓ Test the connection</li>
-                      <li>✓ Set up automatic reporting (every 5 min)</li>
-                    </ul>
-                  </div>
-
-                  <p className="text-sm text-emerald-400">
-                    You should see "Report posted successfully" — then check your dashboard!
-                  </p>
-                </div>
-              </div>
-
-              {/* Manual Setup */}
-              <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
-                <h2 className="text-lg font-bold mb-4">📋 Manual Setup</h2>
-                <p className="text-sm text-zinc-400 mb-4">If you prefer not to use the installer:</p>
-                
-                <div className="space-y-3 text-sm">
-                  <div className="bg-zinc-900/50 rounded-lg p-3">
-                    <div className="text-zinc-400 mb-1">1. Download the reporter:</div>
-                    <code className="text-xs text-emerald-400">mkdir -p ~/.openclaw/pawprint && curl -o ~/.openclaw/pawprint/reporter.ts https://raw.githubusercontent.com/lowvisiondave/pawprint/main/packages/reporter/reporter.ts</code>
-                  </div>
-                  
-                  <div className="bg-zinc-900/50 rounded-lg p-3">
-                    <div className="text-zinc-400 mb-1">2. Set your API key:</div>
-                    <code className="text-xs text-emerald-400">echo "PAWPRINT_API_KEY=pk_test_12345678" &gt; ~/.openclaw/pawprint/.env</code>
-                  </div>
-                  
-                  <div className="bg-zinc-900/50 rounded-lg p-3">
-                    <div className="text-zinc-400 mb-1">3. Test it:</div>
-                    <code className="text-xs text-emerald-400">cd ~/.openclaw/pawprint && npx tsx reporter.ts</code>
-                  </div>
-                  
-                  <div className="bg-zinc-900/50 rounded-lg p-3">
-                    <div className="text-zinc-400 mb-1">4. Add to cron (every 5 min):</div>
-                    <code className="text-xs text-emerald-400">(crontab -l; echo "*/5 * * * * cd ~/.openclaw/pawprint && npx tsx reporter.ts") | crontab -</code>
-                  </div>
-                </div>
-              </div>
-
-              {/* Troubleshooting */}
-              <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
-                <h2 className="text-lg font-bold mb-4">❓ Troubleshooting</h2>
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <div className="text-zinc-300">"OpenClaw directory not found"</div>
-                    <div className="text-zinc-500 text-xs">Make sure OpenClaw is installed (~/.openclaw should exist)</div>
-                  </div>
-                  <div>
-                    <div className="text-zinc-300">"API error 401"</div>
-                    <div className="text-zinc-500 text-xs">Check your API key is correct</div>
-                  </div>
-                  <div>
-                    <div className="text-zinc-300">"npx: command not found"</div>
-                    <div className="text-zinc-500 text-xs">Install Node.js: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash - && sudo apt install nodejs</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </main>
+            )}
+          </main>
+        )}
       </div>
     </div>
   );
 }
 
-// Loading skeleton
-function LoadingState() {
+function StatCard({ label, value, sublabel }: { label: string; value: string; sublabel?: string }) {
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-      <div className="text-center">
-        <div className="text-5xl mb-4 animate-pulse">🐾</div>
-        <p className="text-zinc-500">Loading dashboard...</p>
-      </div>
+    <div className="p-4 border border-zinc-900 rounded-lg">
+      <div className="text-xs text-zinc-500 mb-1">{label}</div>
+      <div className="text-2xl font-medium">{value}</div>
+      {sublabel && <div className="text-xs text-zinc-600">{sublabel}</div>}
     </div>
   );
 }
 
-// Main client component
-export default function DashboardClient({ 
-  initialData, 
-  workspaceId 
-}: { 
-  initialData: DashboardData | null;
-  workspaceId: string;
-}) {
+export default function Dashboard({ initialData, agents, workspaceId }: { initialData: DashboardData | null; agents: Agent[]; workspaceId: string }) {
   const { data: session, status } = useSession();
 
   if (status === "loading") {
-    return <LoadingState />;
+    return <div className="min-h-screen bg-black flex items-center justify-center"><div className="text-zinc-500">Loading...</div></div>;
   }
 
-  if (!session) {
-    return <LandingPage />;
-  }
+  if (!session) return <LandingPage />;
+  if (!initialData) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="text-zinc-500">Failed to load data</div></div>;
 
-  if (!initialData) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-4">⚠️</div>
-          <p className="text-zinc-400">Failed to load dashboard data</p>
-        </div>
-      </div>
-    );
-  }
-
-  return <AuthDashboard data={initialData} workspaceId={workspaceId} />;
+  return <AuthDashboard data={initialData} agents={agents} workspaceId={workspaceId} />;
 }
